@@ -1,19 +1,30 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { useLocation } from 'wouter';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Home, AlertCircle } from 'lucide-react';
 
 export default function NotFound() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-gray-900">404 Page Not Found</h1>
-          </div>
+  const [, setLocation] = useLocation();
 
-          <p className="mt-4 text-sm text-gray-600">
-            Did you forget to add the page to the router?
-          </p>
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md text-center">
+        <CardHeader>
+          <div className="flex justify-center mb-4">
+            <div className="h-16 w-16 rounded-md bg-muted flex items-center justify-center">
+              <AlertCircle className="h-10 w-10 text-muted-foreground" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl">Page Not Found</CardTitle>
+          <CardDescription>
+            The page you're looking for doesn't exist or you don't have access to it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => setLocation('/attendance')} className="w-full" data-testid="button-go-home">
+            <Home className="mr-2 h-4 w-4" />
+            Go to Dashboard
+          </Button>
         </CardContent>
       </Card>
     </div>
