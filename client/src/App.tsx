@@ -14,8 +14,8 @@ import { Loader2, Calendar } from "lucide-react";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 
-function ProtectedRoute({ component: Component, ...rest }: any) {
-  const { user, loading } = useAuth();
+function ProtectedRoute({ component: Component, allowedRoles, ...rest }: any) {
+  const { user, userRole, loading } = useAuth();
 
   if (loading) {
     return (
@@ -27,6 +27,11 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
 
   if (!user) {
     return <Redirect to="/login" />;
+  }
+
+  // Check role-based access
+  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
+    return <Redirect to="/attendance" />;
   }
 
   return <Component {...rest} />;
@@ -50,10 +55,16 @@ function Router() {
         {user ? <RoleBasedRedirect /> : <Redirect to="/login" />}
       </Route>
       <Route path="/attendance">
-        <ProtectedRoute component={AttendancePage} />
+        <ProtectedRoute 
+          component={AttendancePage} 
+          allowedRoles={['owner', 'hr', 'project_manager', 'supervisor', 'secretary']} 
+        />
       </Route>
       <Route path="/logistics">
-        <ProtectedRoute component={LogisticsPage} />
+        <ProtectedRoute 
+          component={LogisticsPage} 
+          allowedRoles={['owner', 'hr', 'project_manager']} 
+        />
       </Route>
       <Route component={NotFound} />
     </Switch>

@@ -37,11 +37,11 @@ After creating a user via the dashboard, you need to add their profile data:
 
 ```sql
 -- Replace the UUID with the actual ID from auth.users table
-INSERT INTO users (id, email, password, full_name, role, site_id)
+-- IMPORTANT: Do NOT store passwords in this table - they're managed by Supabase Auth
+INSERT INTO users (id, email, full_name, role, site_id)
 VALUES (
   'paste-user-uuid-here',
   'owner@company.com',
-  'password-hash',  -- This is stored in auth.users, just put a placeholder
   'Company Owner',
   'owner',
   NULL  -- NULL for owner/hr/pm, specific site UUID for supervisors

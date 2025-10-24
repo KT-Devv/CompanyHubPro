@@ -56,14 +56,23 @@ export default function AttendancePage() {
     enabled: isManagement,
   });
 
-  // Fetch attendance records for selected date
+  // Fetch attendance records for selected date (role-scoped)
   const { data: attendanceRecords, refetch: refetchAttendance } = useQuery({
-    queryKey: ['/api/attendance', selectedDate],
+    queryKey: ['/api/attendance', selectedDate, userRole, userSiteId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('attendance')
         .select('*, workers(name), sites(site_name)')
         .eq('date', selectedDate);
+
+      // Apply role-based filtering
+      if (isSupervisor && userSiteId) {
+        query = query.eq('site_id', userSiteId);
+      } else if (isSecretary) {
+        query = query.eq('worker_type', 'office');
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data as any[];
     },

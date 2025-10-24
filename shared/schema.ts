@@ -10,11 +10,10 @@ export const attendanceStatusEnum = pgEnum("attendance_status", ["Present", "Abs
 export const goodsLogTypeEnum = pgEnum("goods_log_type", ["sent", "received"]);
 export const invoiceTypeEnum = pgEnum("invoice_type", ["purchase", "sale"]);
 
-// Users table (for authentication)
+// Users table (profile data for Supabase Auth users)
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id").primaryKey(), // References auth.users(id)
   email: text("email").notNull().unique(),
-  password: text("password").notNull(),
   fullName: text("full_name").notNull(),
   role: userRoleEnum("role").notNull(),
   siteId: varchar("site_id"),

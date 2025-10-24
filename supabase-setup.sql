@@ -34,11 +34,11 @@ CREATE TABLE positions (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
--- Users table (extends Supabase auth.users)
+-- Users table (profile data for Supabase auth.users)
+-- Note: Passwords are managed by Supabase Auth, NOT stored in this table
 CREATE TABLE users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL UNIQUE,
-  password TEXT NOT NULL,
   full_name TEXT NOT NULL,
   role user_role NOT NULL,
   site_id UUID REFERENCES sites(id),
@@ -311,9 +311,10 @@ INSERT INTO stores (name, location) VALUES
 
 -- Note: User accounts should be created through Supabase Auth UI or API
 -- After creating a user via Supabase Auth, you need to insert corresponding data in the users table
+-- IMPORTANT: Passwords are managed by Supabase Auth - do NOT store passwords in this table
 -- Example (replace with actual user IDs from auth.users):
--- INSERT INTO users (id, email, password, full_name, role, site_id)
--- VALUES ('uuid-from-auth-users', 'user@example.com', 'hashed-password', 'User Name', 'owner', NULL);
+-- INSERT INTO users (id, email, full_name, role, site_id)
+-- VALUES ('uuid-from-auth-users', 'user@example.com', 'User Name', 'owner', NULL);
 
 -- Trigger to update inventory last_updated timestamp
 CREATE OR REPLACE FUNCTION update_inventory_timestamp()
