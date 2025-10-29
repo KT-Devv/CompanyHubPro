@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Building2, ClipboardCheck, Package, LogOut, ChevronUp } from 'lucide-react';
+import { Building2, ClipboardCheck, Package, LogOut, ChevronUp, Users } from 'lucide-react';
 
 export function AppSidebar() {
   const { userRole, signOut, user } = useAuth();
@@ -31,6 +31,15 @@ export function AppSidebar() {
   const isManagement = ['owner', 'hr', 'project_manager'].includes(userRole || '');
 
   const menuItems = [
+    ...(isManagement
+      ? [
+          {
+            title: 'Workers',
+            url: '/workers-management',
+            icon: Users,
+          },
+        ]
+      : []),
     ...(canAccessAttendance
       ? [
           {

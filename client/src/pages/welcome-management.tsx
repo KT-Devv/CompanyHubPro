@@ -2,7 +2,7 @@ import { useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ClipboardCheck, Package, Building2, ArrowRight } from 'lucide-react';
+import { ClipboardCheck, Package, Building2, ArrowRight, Users } from 'lucide-react';
 
 export default function WelcomeManagement() {
   const [, setLocation] = useLocation();
@@ -32,6 +32,29 @@ export default function WelcomeManagement() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="transition-all hover:shadow-lg">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl">All Workers</CardTitle>
+                <Users className="h-8 w-8 text-primary" />
+              </div>
+              <CardDescription>
+                View and search across every worker in the company. Filter by site and type.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => setLocation('/workers-management')}
+                className="w-full"
+                size="lg"
+                variant="outline"
+                data-testid="button-go-workers"
+              >
+                View Workers
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
           <Card className="transition-all hover:shadow-lg">
             <CardHeader>
               <div className="flex items-center justify-between">

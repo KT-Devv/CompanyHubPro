@@ -11,6 +11,7 @@ import Login from "@/pages/login";
 import AttendancePage from "@/pages/attendance";
 import AttendanceManagementPage from "@/pages/attendance-management";
 import LogisticsPage from "@/pages/logistics";
+import WorkersManagementPage from "@/pages/workers-management";
 import WelcomeManagement from "@/pages/welcome-management";
 import WelcomeSecretary from "@/pages/welcome-secretary";
 import WelcomeSupervisor from "@/pages/welcome-supervisor";
@@ -114,6 +115,12 @@ function Router() {
       <Route path="/attendance-management">
         <ProtectedRoute 
           component={AttendanceManagementPage} 
+          allowedRoles={['owner', 'hr', 'project_manager']} 
+        />
+      </Route>
+      <Route path="/workers-management">
+        <ProtectedRoute 
+          component={WorkersManagementPage} 
           allowedRoles={['owner', 'hr', 'project_manager']} 
         />
       </Route>
