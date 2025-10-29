@@ -28,13 +28,14 @@ export function AppSidebar() {
 
   const canAccessAttendance = ['owner', 'hr', 'project_manager', 'supervisor', 'secretary'].includes(userRole || '');
   const canAccessLogistics = ['owner', 'hr', 'project_manager'].includes(userRole || '');
+  const isManagement = ['owner', 'hr', 'project_manager'].includes(userRole || '');
 
   const menuItems = [
     ...(canAccessAttendance
       ? [
           {
-            title: 'Attendance',
-            url: '/attendance',
+            title: isManagement ? 'Attendance Management' : 'Attendance',
+            url: isManagement ? '/attendance-management' : '/attendance',
             icon: ClipboardCheck,
           },
         ]

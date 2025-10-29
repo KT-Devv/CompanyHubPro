@@ -44,7 +44,7 @@ export default function Login() {
               <Building2 className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-semibold">Company Management</CardTitle>
+          <CardTitle className="text-2xl font-semibold">Company Management System</CardTitle>
           <CardDescription>Sign in to access your dashboard</CardDescription>
         </CardHeader>
         <CardContent>
@@ -54,7 +54,7 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
-                placeholder="your.email@company.com"
+                placeholder="abcd@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

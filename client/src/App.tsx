@@ -9,7 +9,11 @@ import { AppSidebar } from "@/components/app-sidebar";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import AttendancePage from "@/pages/attendance";
+import AttendanceManagementPage from "@/pages/attendance-management";
 import LogisticsPage from "@/pages/logistics";
+import WelcomeManagement from "@/pages/welcome-management";
+import WelcomeSecretary from "@/pages/welcome-secretary";
+import WelcomeSupervisor from "@/pages/welcome-supervisor";
 import { Loader2, Calendar } from "lucide-react";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
@@ -37,27 +41,80 @@ function ProtectedRoute({ component: Component, allowedRoles, ...rest }: any) {
   return <Component {...rest} />;
 }
 
+function LoginWrapper() {
+  const { user, userRole, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // If already logged in, redirect based on role
+  if (user) {
+    if (userRole === 'owner' || userRole === 'hr' || userRole === 'project_manager') {
+      return <Redirect to="/welcome-management" />;
+    } else if (userRole === 'secretary') {
+      return <Redirect to="/welcome-secretary" />;
+    } else if (userRole === 'supervisor') {
+      return <Redirect to="/welcome-supervisor" />;
+    }
+  }
+
+  return <Login />;
+}
+
 function Router() {
   const { user, userRole } = useAuth();
 
   // Redirect based on role
   function RoleBasedRedirect() {
-    if (userRole === 'supervisor' || userRole === 'secretary') {
-      return <Redirect to="/attendance" />;
+    if (userRole === 'owner' || userRole === 'hr' || userRole === 'project_manager') {
+      return <Redirect to="/welcome-management" />;
+    } else if (userRole === 'secretary') {
+      return <Redirect to="/welcome-secretary" />;
+    } else if (userRole === 'supervisor') {
+      return <Redirect to="/welcome-supervisor" />;
     }
     return <Redirect to="/attendance" />;
   }
 
   return (
     <Switch>
-      <Route path="/login" component={Login} />
+      <Route path="/login" component={LoginWrapper} />
       <Route path="/">
         {user ? <RoleBasedRedirect /> : <Redirect to="/login" />}
+      </Route>
+      <Route path="/welcome-management">
+        <ProtectedRoute 
+          component={WelcomeManagement} 
+          allowedRoles={['owner', 'hr', 'project_manager']} 
+        />
+      </Route>
+      <Route path="/welcome-secretary">
+        <ProtectedRoute 
+          component={WelcomeSecretary} 
+          allowedRoles={['secretary']} 
+        />
+      </Route>
+      <Route path="/welcome-supervisor">
+        <ProtectedRoute 
+          component={WelcomeSupervisor} 
+          allowedRoles={['supervisor']} 
+        />
       </Route>
       <Route path="/attendance">
         <ProtectedRoute 
           component={AttendancePage} 
-          allowedRoles={['owner', 'hr', 'project_manager', 'supervisor', 'secretary']} 
+          allowedRoles={['supervisor', 'secretary']} 
+        />
+      </Route>
+      <Route path="/attendance-management">
+        <ProtectedRoute 
+          component={AttendanceManagementPage} 
+          allowedRoles={['owner', 'hr', 'project_manager']} 
         />
       </Route>
       <Route path="/logistics">
