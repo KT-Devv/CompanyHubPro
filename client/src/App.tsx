@@ -121,13 +121,13 @@ function Router() {
       <Route path="/workers-management">
         <ProtectedRoute 
           component={WorkersManagementPage} 
-          allowedRoles={['owner', 'hr', 'project_manager']} 
+          allowedRoles={['owner', 'hr', ]} 
         />
       </Route>
       <Route path="/logistics">
         <ProtectedRoute 
           component={LogisticsPage} 
-          allowedRoles={['owner', 'hr', 'project_manager']} 
+          allowedRoles={['owner', 'hr' ]} 
         />
       </Route>
       <Route component={NotFound} />
