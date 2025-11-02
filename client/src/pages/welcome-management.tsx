@@ -15,30 +15,30 @@ export default function WelcomeManagement() {
   };
 
   return (
-    <div className="p-6 lg:p-8">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-primary flex items-center justify-center">
-              <Building2 className="h-10 w-10 text-primary-foreground" />
+            <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-primary flex items-center justify-center">
+              <Building2 className="h-6 w-6 sm:h-10 sm:w-10 text-primary-foreground" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             Welcome to CompanyHub Pro
           </h1>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-base sm:text-lg text-muted-foreground">
             {roleDisplayName[userRole || ''] || 'Management'}, let's get started
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           <Card className="transition-all hover:shadow-lg">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">All Workers</CardTitle>
-                <Users className="h-8 w-8 text-primary" />
+                <CardTitle className="text-lg sm:text-xl">All Workers</CardTitle>
+                <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
               </div>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 View and search across every worker in the company. Filter by site and type.
               </CardDescription>
             </CardHeader>
@@ -58,10 +58,10 @@ export default function WelcomeManagement() {
           <Card className="transition-all hover:shadow-lg">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">Attendance Management</CardTitle>
-                <ClipboardCheck className="h-8 w-8 text-primary" />
+                <CardTitle className="text-lg sm:text-xl">Attendance Management</CardTitle>
+                <ClipboardCheck className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
               </div>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 View and manage attendance records for all workers. Query attendance by date, site, or worker.
               </CardDescription>
             </CardHeader>
@@ -81,10 +81,10 @@ export default function WelcomeManagement() {
           <Card className="transition-all hover:shadow-lg">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">Salaries</CardTitle>
-                <DollarSign className="h-8 w-8 text-primary" />
+                <CardTitle className="text-lg sm:text-xl">Salaries</CardTitle>
+                <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
               </div>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Calculate salaries: Ground workers (days × portfolio rate) and Office workers (fixed monthly). Export salary reports.
               </CardDescription>
             </CardHeader>
@@ -105,10 +105,10 @@ export default function WelcomeManagement() {
           <Card className="transition-all hover:shadow-lg">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">Logistics</CardTitle>
-                <Package className="h-8 w-8 text-primary" />
+                <CardTitle className="text-lg sm:text-xl">Logistics</CardTitle>
+                <Package className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
               </div>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Manage inventory, track goods movement between stores, and handle invoices across all locations.
               </CardDescription>
             </CardHeader>

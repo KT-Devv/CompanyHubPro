@@ -36,16 +36,16 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 sm:p-6">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-md bg-primary flex items-center justify-center">
-              <Building2 className="h-10 w-10 text-primary-foreground" />
+            <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-md bg-primary flex items-center justify-center">
+              <Building2 className="h-6 w-6 sm:h-10 sm:w-10 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-semibold">Company Management System</CardTitle>
-          <CardDescription>Sign in to access your dashboard</CardDescription>
+          <CardTitle className="text-xl sm:text-2xl font-semibold">Company Management System</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">Sign in to access your dashboard</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

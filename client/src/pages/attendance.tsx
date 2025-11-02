@@ -141,47 +141,47 @@ export default function AttendancePage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Mark Attendance</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Mark Attendance</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             {isSupervisor && 'Mark attendance for your site workers'}
             {isSecretary && 'Mark attendance for office staff'}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-muted-foreground" />
+          <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hidden sm:block" />
           <Input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-auto"
+            className="w-full sm:w-auto"
             data-testid="input-date"
           />
         </div>
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0 pb-4">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 space-y-0 pb-4">
           <div>
-            <CardTitle>Mark Attendance</CardTitle>
-            <CardDescription>Select status for each worker</CardDescription>
+            <CardTitle className="text-lg sm:text-xl">Mark Attendance</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Select status for each worker</CardDescription>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={markAllPresent} data-testid="button-mark-all-present">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={markAllPresent} className="w-full sm:w-auto" data-testid="button-mark-all-present">
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Mark All Present
             </Button>
-            <Button onClick={submitAttendance} disabled={Object.keys(attendanceData).length === 0} data-testid="button-submit-attendance">
+            <Button onClick={submitAttendance} disabled={Object.keys(attendanceData).length === 0} className="w-full sm:w-auto" data-testid="button-submit-attendance">
               Submit Attendance ({Object.keys(attendanceData).length})
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Search Filter */}
-          <div className="flex flex-wrap gap-3">
-            <div className="flex-1 min-w-[200px]">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 w-full sm:min-w-[200px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -209,13 +209,13 @@ export default function AttendancePage() {
                 return (
                   <div
                     key={worker.id}
-                    className={`flex flex-wrap items-center justify-between gap-3 p-4 rounded-md border ${
+                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-md border ${
                       alreadyMarked ? 'bg-muted/50 opacity-60' : 'bg-card'
                     }`}
                     data-testid={`worker-row-${worker.id}`}
                   >
-                    <div className="flex-1 min-w-[200px]">
-                      <p className="font-medium">{worker.name}</p>
+                    <div className="flex-1 w-full sm:min-w-[200px]">
+                      <p className="font-medium text-sm sm:text-base">{worker.name}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <Badge variant="outline" className="text-xs">
                           {worker.sites?.site_name || 'No site'}
@@ -238,14 +238,14 @@ export default function AttendancePage() {
                         <p className="text-xs text-muted-foreground mt-1">Already marked for this date</p>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                       <Button
                         size="sm"
                         variant={currentStatus === 'Present' ? 'default' : 'outline'}
                         onClick={() => markAttendance(worker.id, 'Present')}
                         disabled={alreadyMarked}
                         data-testid={`button-present-${worker.id}`}
-                        className="min-w-[80px]"
+                        className="flex-1 sm:flex-none sm:min-w-[80px]"
                       >
                         <CheckCircle2 className="h-4 w-4 mr-1" />
                         Present
@@ -256,7 +256,7 @@ export default function AttendancePage() {
                         onClick={() => markAttendance(worker.id, 'Absent')}
                         disabled={alreadyMarked}
                         data-testid={`button-absent-${worker.id}`}
-                        className="min-w-[80px]"
+                        className="flex-1 sm:flex-none sm:min-w-[80px]"
                       >
                         <XCircle className="h-4 w-4 mr-1" />
                         Absent
@@ -267,7 +267,7 @@ export default function AttendancePage() {
                         onClick={() => markAttendance(worker.id, 'Leave')}
                         disabled={alreadyMarked}
                         data-testid={`button-leave-${worker.id}`}
-                        className="min-w-[80px]"
+                        className="flex-1 sm:flex-none sm:min-w-[80px]"
                       >
                         <Coffee className="h-4 w-4 mr-1" />
                         Leave

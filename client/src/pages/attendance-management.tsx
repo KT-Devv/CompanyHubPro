@@ -89,69 +89,69 @@ export default function AttendanceManagementPage() {
   ) || { present: 0, absent: 0, leave: 0, total: 0 };
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Attendance Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Attendance Management</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             View and query attendance records across all sites and workers
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-muted-foreground" />
+          <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hidden sm:block" />
           <Input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-auto"
+            className="w-full sm:w-auto"
             data-testid="input-date"
           />
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-3xl font-bold mt-1">{stats.total}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Total</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-1">{stats.total}</p>
               </div>
-              <CheckCircle2 className="h-8 w-8 text-muted-foreground" />
+              <CheckCircle2 className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Present</p>
-                <p className="text-3xl font-bold mt-1 text-chart-3">{stats.present}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Present</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-1 text-chart-3">{stats.present}</p>
               </div>
-              <CheckCircle2 className="h-8 w-8 text-chart-3" />
+              <CheckCircle2 className="h-6 w-6 sm:h-8 sm:w-8 text-chart-3" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Absent</p>
-                <p className="text-3xl font-bold mt-1 text-destructive">{stats.absent}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Absent</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-1 text-destructive">{stats.absent}</p>
               </div>
-              <XCircle className="h-8 w-8 text-destructive" />
+              <XCircle className="h-6 w-6 sm:h-8 sm:w-8 text-destructive" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">On Leave</p>
-                <p className="text-3xl font-bold mt-1 text-chart-2">{stats.leave}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">On Leave</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-1 text-chart-2">{stats.leave}</p>
               </div>
-              <Coffee className="h-8 w-8 text-chart-2" />
+              <Coffee className="h-6 w-6 sm:h-8 sm:w-8 text-chart-2" />
             </div>
           </CardContent>
         </Card>
@@ -166,8 +166,8 @@ export default function AttendanceManagementPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-3">
-            <div className="flex-1 min-w-[200px]">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 w-full sm:min-w-[200px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -181,7 +181,7 @@ export default function AttendanceManagementPage() {
             </div>
             {sites && (
               <Select value={filterSite} onValueChange={setFilterSite}>
-                <SelectTrigger className="w-[180px]" data-testid="select-filter-site">
+                <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-filter-site">
                   <SelectValue placeholder="Filter by site" />
                 </SelectTrigger>
                 <SelectContent>
@@ -195,7 +195,7 @@ export default function AttendanceManagementPage() {
               </Select>
             )}
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[180px]" data-testid="select-filter-type">
+              <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-filter-type">
                 <SelectValue placeholder="Worker type" />
               </SelectTrigger>
               <SelectContent>
@@ -205,7 +205,7 @@ export default function AttendanceManagementPage() {
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[180px]" data-testid="select-filter-status">
+              <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-filter-status">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -227,61 +227,63 @@ export default function AttendanceManagementPage() {
               No attendance records found for this date and filters
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Worker
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Site
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Type
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Status
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Time
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRecords.map((record, idx) => (
-                    <tr
-                      key={record.id}
-                      className={idx % 2 === 0 ? 'bg-muted/30' : ''}
-                      data-testid={`attendance-record-${record.id}`}
-                    >
-                      <td className="py-3 px-4">{record.workers?.name}</td>
-                      <td className="py-3 px-4">{record.sites?.site_name}</td>
-                      <td className="py-3 px-4">
-                        <Badge variant="outline" className="text-xs">
-                          {record.workers?.worker_type}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge
-                          variant={
-                            record.status === 'Present'
-                              ? 'default'
-                              : record.status === 'Absent'
-                              ? 'destructive'
-                              : 'secondary'
-                          }
-                        >
-                          {record.status}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs text-muted-foreground">
-                        {format(new Date(record.timestamp), 'HH:mm:ss')}
-                      </td>
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                <table className="w-full min-w-[600px]">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Worker
+                      </th>
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Site
+                      </th>
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Type
+                      </th>
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Status
+                      </th>
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Time
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredRecords.map((record, idx) => (
+                      <tr
+                        key={record.id}
+                        className={idx % 2 === 0 ? 'bg-muted/30' : ''}
+                        data-testid={`attendance-record-${record.id}`}
+                      >
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{record.workers?.name}</td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{record.sites?.site_name}</td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4">
+                          <Badge variant="outline" className="text-xs">
+                            {record.workers?.worker_type}
+                          </Badge>
+                        </td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4">
+                          <Badge
+                            variant={
+                              record.status === 'Present'
+                                ? 'default'
+                                : record.status === 'Absent'
+                                ? 'destructive'
+                                : 'secondary'
+                            }
+                          >
+                            {record.status}
+                          </Badge>
+                        </td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 font-mono text-xs text-muted-foreground">
+                          {format(new Date(record.timestamp), 'HH:mm:ss')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </CardContent>

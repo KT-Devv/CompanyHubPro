@@ -312,18 +312,18 @@ export default function SalariesManagementPage() {
   }, [now]);
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Salaries Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Salaries Management</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Calculate worker salaries with advances and loans
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-muted-foreground" />
+          <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hidden sm:block" />
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-[200px]" data-testid="select-month">
+            <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-month">
               <SelectValue placeholder="Select month" />
             </SelectTrigger>
             <SelectContent>
@@ -338,43 +338,43 @@ export default function SalariesManagementPage() {
       </div>
 
       {/* Totals Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Workers</p>
-                <p className="text-3xl font-bold mt-1">{totals.totalWorkers}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Total Workers</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-1">{totals.totalWorkers}</p>
               </div>
-              <Calculator className="h-8 w-8 text-muted-foreground" />
+              <Calculator className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   {isCurrentMonth ? 'Base Salary' : 'Final Salary'}
                 </p>
-                <p className="text-3xl font-bold mt-1 text-chart-1">
+                <p className="text-2xl sm:text-3xl font-bold mt-1 text-chart-1">
                   ₵{totals.totalSalary.toLocaleString()}
                 </p>
               </div>
-              <DollarSign className="h-8 w-8 text-chart-1" />
+              <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-chart-1" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Deductions</p>
-                <p className="text-3xl font-bold mt-1 text-destructive">
+                <p className="text-xs sm:text-sm text-muted-foreground">Deductions</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-1 text-destructive">
                   ₵{(totals.totalAdvances + totals.totalLoans).toLocaleString()}
                 </p>
               </div>
-              <DollarSign className="h-8 w-8 text-destructive" />
+              <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-destructive" />
             </div>
           </CardContent>
         </Card>
@@ -383,23 +383,24 @@ export default function SalariesManagementPage() {
       {/* Salary Table */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <CardTitle>Salary Calculations</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-lg sm:text-xl">Salary Calculations</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
                 Salaries for the month {monthName}
                 {isCurrentMonth && ' (in progress - totals shown without deductions)'}
               </CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Dialog open={showAdvanceDialog} onOpenChange={setShowAdvanceDialog}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Advance
+                    <span className="hidden sm:inline">Add Advance</span>
+                    <span className="sm:hidden">Advance</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-[95vw] sm:max-w-md">
                   <DialogHeader>
                     <DialogTitle>Add Salary Advance</DialogTitle>
                     <DialogDescription>Record a salary advance for {monthName}</DialogDescription>
@@ -415,12 +416,13 @@ export default function SalariesManagementPage() {
               </Dialog>
               <Dialog open={showLoanDialog} onOpenChange={setShowLoanDialog}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto">
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Loan
+                    <span className="hidden sm:inline">Add Loan</span>
+                    <span className="sm:hidden">Loan</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-[95vw] sm:max-w-md">
                   <DialogHeader>
                     <DialogTitle>Add Loan</DialogTitle>
                     <DialogDescription>Record a loan for {monthName}</DialogDescription>
@@ -434,15 +436,15 @@ export default function SalariesManagementPage() {
                   />
                 </DialogContent>
               </Dialog>
-              <Button onClick={handleExport} variant="outline" data-testid="button-export">
+              <Button onClick={handleExport} variant="outline" size="sm" className="w-full sm:w-auto" data-testid="button-export">
                 Export CSV
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-3">
-            <div className="flex-1 min-w-[220px]">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 w-full sm:min-w-[220px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -456,7 +458,7 @@ export default function SalariesManagementPage() {
             </div>
             {sites && (
               <Select value={filterSite} onValueChange={setFilterSite}>
-                <SelectTrigger className="w-[200px]" data-testid="select-filter-site">
+                <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-filter-site">
                   <SelectValue placeholder="Filter by site" />
                 </SelectTrigger>
                 <SelectContent>
@@ -470,7 +472,7 @@ export default function SalariesManagementPage() {
               </Select>
             )}
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[200px]" data-testid="select-filter-type">
+              <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-filter-type">
                 <SelectValue placeholder="Worker type" />
               </SelectTrigger>
               <SelectContent>
@@ -492,91 +494,93 @@ export default function SalariesManagementPage() {
               No salary calculations found for the selected month and filters
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Worker Name
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Type
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Site
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Rate/Monthly (₵)
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Days
-                    </th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Base Salary (₵)
-                    </th>
-                    {!isCurrentMonth && (
-                      <>
-                        <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Advances (₵)
-                        </th>
-                        <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Loans (₵)
-                        </th>
-                      </>
-                    )}
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {isCurrentMonth ? 'Salary (₵)' : 'Final Salary (₵)'}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCalculations.map((calc, idx) => (
-                    <tr
-                      key={calc.workerId}
-                      className={idx % 2 === 0 ? 'bg-muted/30' : ''}
-                      data-testid={`salary-row-${calc.workerId}`}
-                    >
-                      <td className="py-3 px-4 font-medium">{calc.workerName}</td>
-                      <td className="py-3 px-4">
-                        <Badge variant="outline" className="text-xs">
-                          {calc.workerType}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">{calc.siteName}</td>
-                      <td className="py-3 px-4">₵{calc.rate.toLocaleString()}</td>
-                      <td className="py-3 px-4">
-                        {calc.isFixed ? (
-                          <span className="text-muted-foreground italic">Fixed</span>
-                        ) : (
-                          calc.daysPresent
-                        )}
-                      </td>
-                      <td className="py-3 px-4">₵{calc.baseSalary.toLocaleString()}</td>
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                <table className="w-full min-w-[800px]">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Worker Name
+                      </th>
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Type
+                      </th>
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Site
+                      </th>
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Rate/Monthly (₵)
+                      </th>
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Days
+                      </th>
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Base Salary (₵)
+                      </th>
                       {!isCurrentMonth && (
                         <>
-                          <td className="py-3 px-4">
-                            {calc.advances > 0 ? (
-                              <span className="text-destructive">-₵{calc.advances.toLocaleString()}</span>
-                            ) : (
-                              '₵0'
-                            )}
-                          </td>
-                          <td className="py-3 px-4">
-                            {calc.loans > 0 ? (
-                              <span className="text-destructive">-₵{calc.loans.toLocaleString()}</span>
-                            ) : (
-                              '₵0'
-                            )}
-                          </td>
+                          <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Advances (₵)
+                          </th>
+                          <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Loans (₵)
+                          </th>
                         </>
                       )}
-                      <td className="py-3 px-4 font-semibold">
-                        ₵{(isCurrentMonth ? calc.baseSalary : calc.finalSalary).toLocaleString()}
-                      </td>
+                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {isCurrentMonth ? 'Salary (₵)' : 'Final Salary (₵)'}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredCalculations.map((calc, idx) => (
+                      <tr
+                        key={calc.workerId}
+                        className={idx % 2 === 0 ? 'bg-muted/30' : ''}
+                        data-testid={`salary-row-${calc.workerId}`}
+                      >
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium text-sm">{calc.workerName}</td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4">
+                          <Badge variant="outline" className="text-xs">
+                            {calc.workerType}
+                          </Badge>
+                        </td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{calc.siteName}</td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">₵{calc.rate.toLocaleString()}</td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">
+                          {calc.isFixed ? (
+                            <span className="text-muted-foreground italic">Fixed</span>
+                          ) : (
+                            calc.daysPresent
+                          )}
+                        </td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">₵{calc.baseSalary.toLocaleString()}</td>
+                        {!isCurrentMonth && (
+                          <>
+                            <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">
+                              {calc.advances > 0 ? (
+                                <span className="text-destructive">-₵{calc.advances.toLocaleString()}</span>
+                              ) : (
+                                '₵0'
+                              )}
+                            </td>
+                            <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">
+                              {calc.loans > 0 ? (
+                                <span className="text-destructive">-₵{calc.loans.toLocaleString()}</span>
+                              ) : (
+                                '₵0'
+                              )}
+                            </td>
+                          </>
+                        )}
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 font-semibold text-sm">
+                          ₵{(isCurrentMonth ? calc.baseSalary : calc.finalSalary).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </CardContent>

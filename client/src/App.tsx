@@ -168,11 +168,12 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center justify-between h-16 px-4 border-b border-border bg-background">
+          <header className="flex items-center justify-between h-16 px-3 sm:px-4 border-b border-border bg-background">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span className="font-mono">{format(currentTime, 'EEE, MMM dd, yyyy HH:mm:ss')}</span>
+            <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
+              <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="font-mono hidden sm:inline">{format(currentTime, 'EEE, MMM dd, yyyy HH:mm:ss')}</span>
+              <span className="font-mono sm:hidden">{format(currentTime, 'MMM dd, HH:mm')}</span>
             </div>
           </header>
           <main className="flex-1 overflow-auto bg-background">
