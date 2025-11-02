@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Building2, ClipboardCheck, Package, LogOut, ChevronUp, Users } from 'lucide-react';
+import { Building2, ClipboardCheck, Package, LogOut, ChevronUp, Users, DollarSign } from 'lucide-react';
 
 export function AppSidebar() {
   const { userRole, signOut, user } = useAuth();
@@ -46,6 +46,15 @@ export function AppSidebar() {
             title: isManagement ? 'Attendance Management' : 'Attendance',
             url: isManagement ? '/attendance-management' : '/attendance',
             icon: ClipboardCheck,
+          },
+        ]
+      : []),
+    ...(isManagement
+      ? [
+          {
+            title: 'Salaries',
+            url: '/salaries-management',
+            icon: DollarSign,
           },
         ]
       : []),

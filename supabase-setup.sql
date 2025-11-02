@@ -24,6 +24,7 @@ CREATE TABLE portfolios (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   portfolio_name TEXT NOT NULL,
   ratio INTEGER NOT NULL,
+  rate INTEGER NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
@@ -31,6 +32,7 @@ CREATE TABLE portfolios (
 CREATE TABLE positions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   position_name TEXT NOT NULL,
+  rate INTEGER NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
@@ -60,6 +62,7 @@ CREATE TABLE workers (
   contact_person TEXT NOT NULL,
   cp_phone TEXT NOT NULL,
   cp_relation TEXT NOT NULL,
+  rate INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
@@ -118,6 +121,28 @@ CREATE TABLE attendance (
   UNIQUE(worker_id, date)
 );
 
+-- Salary Advances table
+CREATE TABLE salary_advances (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  worker_id UUID REFERENCES workers(id) NOT NULL,
+  amount INTEGER NOT NULL,
+  month VARCHAR(7) NOT NULL,
+  date DATE NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+-- Loans table
+CREATE TABLE loans (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  worker_id UUID REFERENCES workers(id) NOT NULL,
+  amount INTEGER NOT NULL,
+  month VARCHAR(7) NOT NULL,
+  date DATE NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
 -- Create indexes for better query performance
 CREATE INDEX idx_workers_site ON workers(site_id);
 CREATE INDEX idx_workers_type ON workers(worker_type);
@@ -126,6 +151,10 @@ CREATE INDEX idx_attendance_worker ON attendance(worker_id);
 CREATE INDEX idx_inventory_store ON inventory(store_id);
 CREATE INDEX idx_goods_log_date ON goods_log(date);
 CREATE INDEX idx_invoices_date ON invoices(date);
+CREATE INDEX idx_salary_advances_month ON salary_advances(month);
+CREATE INDEX idx_salary_advances_worker ON salary_advances(worker_id);
+CREATE INDEX idx_loans_month ON loans(month);
+CREATE INDEX idx_loans_worker ON loans(worker_id);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -138,6 +167,8 @@ ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE goods_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salary_advances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE loans ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
@@ -281,6 +312,44 @@ CREATE POLICY "Users can insert attendance" ON attendance
     )
   );
 
+-- Salary Advances: Management can view and manage
+CREATE POLICY "Management can view salary advances" ON salary_advances
+  FOR SELECT TO authenticated USING (
+    EXISTS (
+      SELECT 1 FROM users 
+      WHERE id = auth.uid() 
+      AND role IN ('owner', 'hr', 'project_manager')
+    )
+  );
+
+CREATE POLICY "Management can insert salary advances" ON salary_advances
+  FOR INSERT TO authenticated WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM users 
+      WHERE id = auth.uid() 
+      AND role IN ('owner', 'hr', 'project_manager')
+    )
+  );
+
+-- Loans: Management can view and manage
+CREATE POLICY "Management can view loans" ON loans
+  FOR SELECT TO authenticated USING (
+    EXISTS (
+      SELECT 1 FROM users 
+      WHERE id = auth.uid() 
+      AND role IN ('owner', 'hr', 'project_manager')
+    )
+  );
+
+CREATE POLICY "Management can insert loans" ON loans
+  FOR INSERT TO authenticated WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM users 
+      WHERE id = auth.uid() 
+      AND role IN ('owner', 'hr', 'project_manager')
+    )
+  );
+
 -- Insert sample data
 
 -- Sample sites
@@ -297,11 +366,11 @@ INSERT INTO portfolios (portfolio_name, ratio) VALUES
   ('Electrician', 110);
 
 -- Sample positions (for office workers)
-INSERT INTO positions (position_name) VALUES
-  ('Accountant'),
-  ('Secretary'),
-  ('Project Coordinator'),
-  ('HR Manager');
+INSERT INTO positions (position_name, rate) VALUES
+  ('Accountant', 3000),
+  ('Secretary', 2500),
+  ('Project Coordinator', 3500),
+  ('HR Manager', 4000);
 
 -- Sample stores
 INSERT INTO stores (name, location) VALUES

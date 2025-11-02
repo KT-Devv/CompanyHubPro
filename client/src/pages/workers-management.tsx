@@ -28,7 +28,7 @@ export default function WorkersManagementPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('workers')
-        .select('*, sites(site_name), portfolios(portfolio_name), positions(position_name)')
+        .select('*, sites(site_name), portfolios(portfolio_name, rate), positions(position_name, rate)')
         .order('name');
       if (error) throw error;
       return data as any[];
@@ -86,9 +86,9 @@ export default function WorkersManagementPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Sites</SelectItem>
-                  {sites.map((site) => (
+                  {sites.map((site: any) => (
                     <SelectItem key={site.id} value={site.id}>
-                      {site.siteName}
+                      {site.site_name || site.siteName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -123,6 +123,7 @@ export default function WorkersManagementPage() {
                     <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Type</th>
                     <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Site</th>
                     <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Portfolio/Position</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Rate (₵)</th>
                     <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Phone</th>
                     <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">National ID</th>
                   </tr>
@@ -137,6 +138,11 @@ export default function WorkersManagementPage() {
                       <td className="py-3 px-4">{w.sites?.site_name || '-'}</td>
                       <td className="py-3 px-4">
                         {w.worker_type === 'grounds' ? (w.portfolios?.portfolio_name || '-') : (w.positions?.position_name || '-')}
+                      </td>
+                      <td className="py-3 px-4">
+                        {w.worker_type === 'grounds' 
+                          ? (w.portfolios?.rate ? `₵${w.portfolios.rate.toLocaleString()}` : '-')
+                          : (w.positions?.rate ? `₵${w.positions.rate.toLocaleString()}` : '-')}
                       </td>
                       <td className="py-3 px-4">{w.phone_number}</td>
                       <td className="py-3 px-4">{w.national_id}</td>

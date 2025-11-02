@@ -2,7 +2,7 @@ import { useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ClipboardCheck, Package, Building2, ArrowRight, Users } from 'lucide-react';
+import { ClipboardCheck, Package, Building2, ArrowRight, Users, DollarSign } from 'lucide-react';
 
 export default function WelcomeManagement() {
   const [, setLocation] = useLocation();
@@ -73,6 +73,30 @@ export default function WelcomeManagement() {
                 data-testid="button-go-attendance"
               >
                 Go to Attendance
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="transition-all hover:shadow-lg">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl">Salaries</CardTitle>
+                <DollarSign className="h-8 w-8 text-primary" />
+              </div>
+              <CardDescription>
+                Calculate salaries: Ground workers (days × portfolio rate) and Office workers (fixed monthly). Export salary reports.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => setLocation('/salaries-management')}
+                className="w-full"
+                size="lg"
+                variant="outline"
+                data-testid="button-go-salaries"
+              >
+                Go to Salaries
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </CardContent>

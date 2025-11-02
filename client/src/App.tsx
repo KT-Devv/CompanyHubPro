@@ -12,6 +12,7 @@ import AttendancePage from "@/pages/attendance";
 import AttendanceManagementPage from "@/pages/attendance-management";
 import LogisticsPage from "@/pages/logistics";
 import WorkersManagementPage from "@/pages/workers-management";
+import SalariesManagementPage from "@/pages/salaries-management";
 import WelcomeManagement from "@/pages/welcome-management";
 import WelcomeSecretary from "@/pages/welcome-secretary";
 import WelcomeSupervisor from "@/pages/welcome-supervisor";
@@ -128,6 +129,12 @@ function Router() {
         <ProtectedRoute 
           component={LogisticsPage} 
           allowedRoles={['owner', 'hr' ]} 
+        />
+      </Route>
+      <Route path="/salaries-management">
+        <ProtectedRoute 
+          component={SalariesManagementPage} 
+          allowedRoles={['owner', 'hr', 'project_manager']} 
         />
       </Route>
       <Route component={NotFound} />

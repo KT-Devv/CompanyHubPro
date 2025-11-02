@@ -186,9 +186,9 @@ export default function AttendanceManagementPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Sites</SelectItem>
-                  {sites.map((site) => (
+                  {sites.map((site: any) => (
                     <SelectItem key={site.id} value={site.id}>
-                      {site.siteName}
+                      {site.site_name || site.siteName}
                     </SelectItem>
                   ))}
                 </SelectContent>

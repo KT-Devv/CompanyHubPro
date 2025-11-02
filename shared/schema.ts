@@ -33,6 +33,7 @@ export const portfolios = pgTable("portfolios", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   portfolioName: text("portfolio_name").notNull(),
   ratio: integer("ratio").notNull(),
+  rate: integer("rate").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -40,6 +41,7 @@ export const portfolios = pgTable("portfolios", {
 export const positions = pgTable("positions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   positionName: text("position_name").notNull(),
+  rate: integer("rate").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -58,6 +60,7 @@ export const workers = pgTable("workers", {
   contactPerson: text("contact_person").notNull(),
   cpPhone: text("cp_phone").notNull(),
   cpRelation: text("cp_relation").notNull(),
+  rate: integer("rate").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -115,6 +118,28 @@ export const attendance = pgTable("attendance", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Salary Advances table
+export const salaryAdvances = pgTable("salary_advances", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").references(() => workers.id).notNull(),
+  amount: integer("amount").notNull(),
+  month: varchar("month").notNull(), // Format: YYYY-MM
+  date: date("date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Loans table
+export const loans = pgTable("loans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").references(() => workers.id).notNull(),
+  amount: integer("amount").notNull(),
+  month: varchar("month").notNull(), // Format: YYYY-MM
+  date: date("date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -169,6 +194,16 @@ export const insertAttendanceSchema = createInsertSchema(attendance).omit({
   timestamp: true,
 });
 
+export const insertSalaryAdvanceSchema = createInsertSchema(salaryAdvances).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertLoanSchema = createInsertSchema(loans).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -199,6 +234,12 @@ export type Invoice = typeof invoices.$inferSelect;
 
 export type InsertAttendance = z.infer<typeof insertAttendanceSchema>;
 export type Attendance = typeof attendance.$inferSelect;
+
+export type InsertSalaryAdvance = z.infer<typeof insertSalaryAdvanceSchema>;
+export type SalaryAdvance = typeof salaryAdvances.$inferSelect;
+
+export type InsertLoan = z.infer<typeof insertLoanSchema>;
+export type Loan = typeof loans.$inferSelect;
 
 // Login Schema
 export const loginSchema = z.object({
