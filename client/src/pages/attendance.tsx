@@ -11,12 +11,14 @@ import { useToast } from '@/hooks/use-toast';
 import { Calendar, CheckCircle2, XCircle, Coffee, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Worker, Attendance } from '@shared/schema';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function AttendancePage() {
   const { userRole, userId, userSiteId } = useAuth();
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSiteByWorker, setSelectedSiteByWorker] = useState<Record<string, string>>({});
 
   const isSupervisor = userRole === 'supervisor';
   const isSecretary = userRole === 'secretary';
@@ -34,6 +36,16 @@ export default function AttendancePage() {
       }
 
       const { data, error } = await query.order('name');
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  // Fetch sites for site selection (used by secretaries for office workers)
+  const { data: sites } = useQuery({
+    queryKey: ['/api/sites'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('sites').select('*').order('site_name');
       if (error) throw error;
       return data as any[];
     },
@@ -80,12 +92,31 @@ export default function AttendancePage() {
       return;
     }
 
+    // Validate site selection for office workers
+    const missingSiteFor = entries
+      .map(([workerId]) => workers?.find((w) => w.id === workerId))
+      .filter((w) => w && w.worker_type === 'office' && !selectedSiteByWorker[w.id]);
+
+    if (missingSiteFor && missingSiteFor.length > 0) {
+      const firstName = missingSiteFor[0]?.name || 'some workers';
+      toast({
+        title: "Site required for office workers",
+        description: `Select a site for ${firstName} (and any other office workers).`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const attendanceEntries = entries.map(([workerId, status]) => {
         const worker = workers?.find((w) => w.id === workerId);
+        const chosenSiteId =
+          worker?.worker_type === 'office'
+            ? selectedSiteByWorker[workerId]
+            : worker?.site_id;
         return {
           worker_id: workerId,
-          site_id: worker?.site_id,
+          site_id: chosenSiteId,
           date: selectedDate,
           status,
           marked_by: userId,
@@ -102,6 +133,7 @@ export default function AttendancePage() {
       });
 
       setAttendanceData({});
+      setSelectedSiteByWorker({});
       refetchAttendance();
     } catch (error: any) {
       toast({
@@ -217,9 +249,13 @@ export default function AttendancePage() {
                     <div className="flex-1 w-full sm:min-w-[200px]">
                       <p className="font-medium text-sm sm:text-base">{worker.name}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {worker.sites?.site_name || 'No site'}
-                        </Badge>
+                        {worker.worker_type === 'grounds' ? (
+                          <Badge variant="outline" className="text-xs">
+                            {worker.sites?.site_name || 'No site'}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">Daily site selection</Badge>
+                        )}
                         <Badge variant="secondary" className="text-xs">
                           {worker.worker_type}
                         </Badge>
@@ -238,6 +274,28 @@ export default function AttendancePage() {
                         <p className="text-xs text-muted-foreground mt-1">Already marked for this date</p>
                       )}
                     </div>
+                    {/* Site selector for office workers */}
+                    {worker.worker_type === 'office' && !alreadyMarked && (
+                      <div className="w-full sm:w-56">
+                        <Select
+                          value={selectedSiteByWorker[worker.id] || ''}
+                          onValueChange={(val) =>
+                            setSelectedSiteByWorker((prev) => ({ ...prev, [worker.id]: val }))
+                          }
+                        >
+                          <SelectTrigger className="w-full" data-testid={`select-site-${worker.id}`}>
+                            <SelectValue placeholder="Select site" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(sites || []).map((site: any) => (
+                              <SelectItem key={site.id} value={site.id}>
+                                {site.site_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                       <Button
                         size="sm"
