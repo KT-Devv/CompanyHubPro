@@ -59,6 +59,9 @@ export default function SalariesManagementPage() {
       if (error) throw error;
       return data as Site[];
     },
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Fetch workers with their rates from portfolios and positions
@@ -72,6 +75,9 @@ export default function SalariesManagementPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Fetch attendance records for the month
@@ -87,6 +93,9 @@ export default function SalariesManagementPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Fetch salary advances for the month
@@ -100,6 +109,9 @@ export default function SalariesManagementPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchInterval: 7000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Fetch loans for the month
@@ -113,6 +125,9 @@ export default function SalariesManagementPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchInterval: 7000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Calculate salaries

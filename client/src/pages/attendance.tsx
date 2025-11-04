@@ -71,87 +71,64 @@ export default function AttendancePage() {
       if (error) throw error;
       return data as any[];
     },
+    // Auto-refresh attendance records
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
-  const [attendanceData, setAttendanceData] = useState<Record<string, string>>({});
-
-  // Mark attendance for a worker
+  // Immediately submit attendance for a single worker (records current timestamp on insert)
   async function markAttendance(workerId: string, status: string) {
-    setAttendanceData((prev) => ({ ...prev, [workerId]: status }));
-  }
+    const worker = workers?.find((w) => w.id === workerId);
+    if (!worker) return;
 
-  // Submit all marked attendance
-  async function submitAttendance() {
-    const entries = Object.entries(attendanceData);
-    if (entries.length === 0) {
+    // Require site for office workers when Present
+    if (worker.worker_type === 'office' && status === 'Present' && !selectedSiteByWorker[workerId]) {
       toast({
-        title: "No attendance marked",
-        description: "Please mark attendance for at least one worker",
+        title: "Site required",
+        description: `Select a site for ${worker.name} before marking Present`,
         variant: "destructive",
       });
       return;
     }
 
-  // Validate site selection for office workers ONLY when marked Present
-  const missingSiteFor = entries
-      .map(([workerId, status]) => ({ worker: workers?.find((w) => w.id === workerId), status }))
-      .filter((item) => item.worker && item.worker.worker_type === 'office' && item.status === 'Present' && !selectedSiteByWorker[item.worker.id])
-      .map((item) => item.worker);
-
-    if (missingSiteFor && missingSiteFor.length > 0) {
-      const firstName = missingSiteFor[0]?.name || 'some workers';
-      toast({
-        title: "Site required for office workers",
-        description: `Select a site for ${firstName} (and any other office workers).`,
-        variant: "destructive",
-      });
-      return;
-    }
+    const chosenSiteId =
+      worker.worker_type === 'office'
+        ? (status === 'Present' ? selectedSiteByWorker[workerId] : null)
+        : (status === 'Present' ? worker.site_id : null);
 
     try {
-      const attendanceEntries = entries.map(([workerId, status]) => {
-        const worker = workers?.find((w) => w.id === workerId);
-        const chosenSiteId =
-          worker?.worker_type === 'office'
-            ? (status === 'Present' ? selectedSiteByWorker[workerId] : null)
-            : worker?.site_id;
-        return {
-          worker_id: workerId,
-          site_id: chosenSiteId,
-          date: selectedDate,
-          status,
-          marked_by: userId,
-          worker_type: worker?.worker_type,
-        };
+      const { error } = await supabase.from('attendance').insert({
+        worker_id: workerId,
+        site_id: chosenSiteId,
+        date: selectedDate,
+        status,
+        marked_by: userId,
+        worker_type: worker.worker_type,
       });
-
-      const { error } = await supabase.from('attendance').insert(attendanceEntries);
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: `Attendance marked for ${entries.length} worker(s)`,
+        title: "Attendance recorded",
+        description: `${worker.name} marked ${status}`,
       });
 
-      setAttendanceData({});
-      setSelectedSiteByWorker({});
+      // Clear per-worker site selection only after successful submit
+      setSelectedSiteByWorker((prev) => {
+        const next = { ...prev };
+        delete next[workerId];
+        return next;
+      });
+
       refetchAttendance();
     } catch (error: any) {
+      // Handle duplicate (already marked) or other errors
       toast({
-        title: "Error",
-        description: error.message || "Failed to submit attendance",
+        title: "Could not record attendance",
+        description: error.message || "Please try again",
         variant: "destructive",
       });
     }
-  }
-
-  // Mark all as present
-  function markAllPresent() {
-    const newData: Record<string, string> = {};
-    filteredWorkers.forEach((worker) => {
-      newData[worker.id] = 'Present';
-    });
-    setAttendanceData(newData);
   }
 
   // Filter workers
@@ -199,16 +176,7 @@ export default function AttendancePage() {
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 space-y-0 pb-4">
           <div>
             <CardTitle className="text-lg sm:text-xl">Mark Attendance</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Select status for each worker</CardDescription>
-          </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            <Button variant="outline" size="sm" onClick={markAllPresent} className="w-full sm:w-auto" data-testid="button-mark-all-present">
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Mark All Present
-            </Button>
-            <Button onClick={submitAttendance} disabled={Object.keys(attendanceData).length === 0} className="w-full sm:w-auto" data-testid="button-submit-attendance">
-              Submit Attendance ({Object.keys(attendanceData).length})
-            </Button>
+            <CardDescription className="text-xs sm:text-sm">Click a status to record instantly</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -236,7 +204,6 @@ export default function AttendancePage() {
               </div>
             ) : (
               filteredWorkers.map((worker) => {
-                const currentStatus = attendanceData[worker.id];
                 const alreadyMarked = attendanceRecords?.some((r) => r.worker_id === worker.id);
 
                 return (
@@ -300,7 +267,7 @@ export default function AttendancePage() {
                     <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                       <Button
                         size="sm"
-                        variant={currentStatus === 'Present' ? 'default' : 'outline'}
+                        variant={'outline'}
                         onClick={() => markAttendance(worker.id, 'Present')}
                         disabled={alreadyMarked}
                         data-testid={`button-present-${worker.id}`}
@@ -311,7 +278,7 @@ export default function AttendancePage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant={currentStatus === 'Absent' ? 'destructive' : 'outline'}
+                        variant={'outline'}
                         onClick={() => markAttendance(worker.id, 'Absent')}
                         disabled={alreadyMarked}
                         data-testid={`button-absent-${worker.id}`}
@@ -322,7 +289,7 @@ export default function AttendancePage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant={currentStatus === 'Leave' ? 'secondary' : 'outline'}
+                        variant={'outline'}
                         onClick={() => markAttendance(worker.id, 'Leave')}
                         disabled={alreadyMarked}
                         data-testid={`button-leave-${worker.id}`}

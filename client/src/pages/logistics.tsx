@@ -30,6 +30,9 @@ export default function LogisticsPage() {
       if (error) throw error;
       return data as Store[];
     },
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Fetch inventory
@@ -46,6 +49,9 @@ export default function LogisticsPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchInterval: 7000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Fetch goods logs
@@ -60,6 +66,9 @@ export default function LogisticsPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchInterval: 7000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Fetch invoices
@@ -74,6 +83,9 @@ export default function LogisticsPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchInterval: 10000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Filter inventory

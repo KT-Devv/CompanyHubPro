@@ -70,6 +70,10 @@ export default function AttendanceManagementPage() {
       if (error) throw error;
       return data as any[];
     },
+    // Auto-refresh attendance records for management view
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   // Filter by search query
