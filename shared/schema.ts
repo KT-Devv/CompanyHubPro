@@ -109,7 +109,7 @@ export const invoices = pgTable("invoices", {
 export const attendance = pgTable("attendance", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workerId: varchar("worker_id").references(() => workers.id).notNull(),
-  siteId: varchar("site_id").references(() => sites.id).notNull(),
+  siteId: varchar("site_id").references(() => sites.id),
   date: date("date").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   status: attendanceStatusEnum("status").notNull(),

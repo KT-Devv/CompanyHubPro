@@ -92,10 +92,11 @@ export default function AttendancePage() {
       return;
     }
 
-    // Validate site selection for office workers
-    const missingSiteFor = entries
-      .map(([workerId]) => workers?.find((w) => w.id === workerId))
-      .filter((w) => w && w.worker_type === 'office' && !selectedSiteByWorker[w.id]);
+  // Validate site selection for office workers ONLY when marked Present
+  const missingSiteFor = entries
+      .map(([workerId, status]) => ({ worker: workers?.find((w) => w.id === workerId), status }))
+      .filter((item) => item.worker && item.worker.worker_type === 'office' && item.status === 'Present' && !selectedSiteByWorker[item.worker.id])
+      .map((item) => item.worker);
 
     if (missingSiteFor && missingSiteFor.length > 0) {
       const firstName = missingSiteFor[0]?.name || 'some workers';
@@ -112,7 +113,7 @@ export default function AttendancePage() {
         const worker = workers?.find((w) => w.id === workerId);
         const chosenSiteId =
           worker?.worker_type === 'office'
-            ? selectedSiteByWorker[workerId]
+            ? (status === 'Present' ? selectedSiteByWorker[workerId] : null)
             : worker?.site_id;
         return {
           worker_id: workerId,
