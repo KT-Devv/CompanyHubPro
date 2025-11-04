@@ -7,6 +7,7 @@ interface AuthContextType {
   userRole: string | null;
   userId: string | null;
   userSiteId: string | null;
+  userFullName: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -19,6 +20,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userSiteId, setUserSiteId] = useState<string | null>(null);
+  const [userFullName, setUserFullName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUserRole(null);
         setUserId(null);
         setUserSiteId(null);
+        setUserFullName(null);
         setLoading(false);
       }
     });
@@ -52,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('id, role, site_id')
+        .select('id, role, site_id, full_name')
         .eq('id', authUserId)
         .single();
 
@@ -61,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserRole(data?.role || null);
       setUserId(data?.id || null);
       setUserSiteId(data?.site_id || null);
+      setUserFullName(data?.full_name || null);
     } catch (error) {
       console.error('Error loading user profile:', error);
     } finally {
@@ -86,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userRole,
     userId,
     userSiteId,
+    userFullName,
     loading,
     signIn,
     signOut,

@@ -6,7 +6,7 @@ import { ClipboardCheck, Package, Building2, ArrowRight, Users, DollarSign } fro
 
 export default function WelcomeManagement() {
   const [, setLocation] = useLocation();
-  const { userRole } = useAuth();
+  const { userFullName, userRole } = useAuth();
 
   const roleDisplayName: Record<string, string> = {
     owner: 'Owner',
@@ -24,7 +24,7 @@ export default function WelcomeManagement() {
             </div>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            Welcome to CompanyHub Pro
+            Welcome{userFullName ? `, ${userFullName}` : ''}
           </h1>
           <p className="text-base sm:text-lg text-muted-foreground">
             {roleDisplayName[userRole || ''] || 'Management'}, let's get started

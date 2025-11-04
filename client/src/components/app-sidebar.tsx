@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Building2, ClipboardCheck, Package, LogOut, ChevronUp, Users, DollarSign } from 'lucide-react';
 
 export function AppSidebar() {
-  const { userRole, signOut, user } = useAuth();
+  const { userRole, signOut, user, userFullName } = useAuth();
   const [location, setLocation] = useLocation();
 
   const canAccessAttendance = ['owner', 'hr', 'project_manager', 'supervisor', 'secretary'].includes(userRole || '');
@@ -69,7 +69,16 @@ export function AppSidebar() {
       : []),
   ];
 
-  const initials = user?.email?.substring(0, 2).toUpperCase() || 'U';
+  const initials = (() => {
+    if (userFullName) {
+      const parts = userFullName.trim().split(/\s+/);
+      const first = parts[0]?.[0] || '';
+      const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+      const letters = (first + last) || parts[0]?.substring(0, 2) || 'U';
+      return letters.toUpperCase();
+    }
+    return (user?.email?.substring(0, 2) || 'U').toUpperCase();
+  })();
 
   return (
     <Sidebar>
@@ -122,7 +131,7 @@ export function AppSidebar() {
               </Avatar>
               <div className="flex-1 text-left min-w-0">
                 <p className="text-sm font-medium text-sidebar-foreground truncate">
-                  {user?.email}
+                  {userFullName || user?.email}
                 </p>
                 <Badge variant="secondary" className="text-xs mt-1">
                   {userRole}

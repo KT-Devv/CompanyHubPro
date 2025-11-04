@@ -1,10 +1,12 @@
 import { useLocation } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { ClipboardCheck, FileText, ArrowRight } from 'lucide-react';
 
 export default function WelcomeSecretary() {
   const [, setLocation] = useLocation();
+  const { userFullName } = useAuth();
 
   return (
     <div className="p-6 lg:p-8">
@@ -16,7 +18,7 @@ export default function WelcomeSecretary() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-foreground">
-            Welcome
+            Welcome{userFullName ? `, ${userFullName}` : ''}
           </h1>
           <p className="text-lg text-muted-foreground">
             Secretary, let's get started with your tasks
