@@ -1,8 +1,8 @@
-# Company Management System
+# SiteTrack
 
-A comprehensive construction company management web application built with React, TypeScript, and Supabase. This system provides role-based dashboards for managing attendance tracking and logistics operations across multiple construction sites and stores.
+A comprehensive construction company management web application built with React, TypeScript, and Supabase. SiteTrack provides role-based dashboards for managing attendance tracking and logistics operations across multiple construction sites and stores.
 
-![Company Management System](https://img.shields.io/badge/Built%20with-React%20%2B%20Supabase-blue)
+![SiteTrack](https://img.shields.io/badge/Built%20with-React%20%2B%20Supabase-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)
 ![Tailwind CSS](https://img.shields.io/badge/Styled%20with-Tailwind%20CSS-38bdf8)
 

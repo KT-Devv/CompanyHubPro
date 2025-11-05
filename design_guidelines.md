@@ -1,4 +1,4 @@
-# Design Guidelines: Construction Company Management Web App
+# Design Guidelines: SiteTrack
 
 ## Design Approach: Professional Dashboard System
 
@@ -44,7 +44,7 @@
 
 **Top Bar:**
 - Height: h-16
-- Contains: Company logo (left), current date/time (center), user profile dropdown (right)
+- Contains: SiteTrack logo (left), current date/time (center), user profile dropdown (right)
 - Fixed position with subtle bottom border
 - User avatar with role badge, logout option
 

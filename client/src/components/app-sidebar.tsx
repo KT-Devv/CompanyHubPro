@@ -89,9 +89,9 @@ export function AppSidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-semibold text-sidebar-foreground truncate">
-              Company Manager
+              SiteTrack
             </h2>
-            <p className="text-xs text-muted-foreground truncate">Construction Management</p>
+            <p className="text-[10px] text-muted-foreground truncate">Company Management System</p>
           </div>
         </div>
       </SidebarHeader>

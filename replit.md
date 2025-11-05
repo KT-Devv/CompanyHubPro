@@ -1,7 +1,7 @@
-# Company Management Web App
+# SiteTrack
 
 ## Overview
-A comprehensive construction company management system built with React, TypeScript, and Supabase. The application provides role-based dashboards for managing attendance tracking across multiple construction sites and logistics management for inventory across three stores (Sunyani, Berekum, Techiman).
+A comprehensive construction company management system built with React, TypeScript, and Supabase. SiteTrack provides role-based dashboards for managing attendance tracking across multiple construction sites and logistics management for inventory across three stores (Sunyani, Berekum, Techiman).
 
 ## Purpose
 This application serves a construction company with both grounds workers and office workers across multiple sites and stores. It streamlines daily operations including:

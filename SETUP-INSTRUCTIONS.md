@@ -1,4 +1,4 @@
-# Setup Instructions for Company Management System
+# Setup Instructions for SiteTrack
 
 ## Prerequisites
 - A Supabase account (sign up at https://supabase.com)

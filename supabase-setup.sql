@@ -1,4 +1,4 @@
--- Company Management System - Supabase Database Setup
+-- SiteTrack - Supabase Database Setup
 -- Run this SQL in your Supabase SQL Editor to create all tables and policies
 
 -- Enable UUID extension

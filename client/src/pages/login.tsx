@@ -44,7 +44,7 @@ export default function Login() {
               <Building2 className="h-6 w-6 sm:h-10 sm:w-10 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-xl sm:text-2xl font-semibold">Company Management System</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl font-semibold">Welcome to SiteTrack</CardTitle>
           <CardDescription className="text-xs sm:text-sm">Sign in to access your dashboard</CardDescription>
         </CardHeader>
         <CardContent>
