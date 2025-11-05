@@ -95,7 +95,7 @@ export default function AttendancePage() {
     const chosenSiteId =
       worker.worker_type === 'office'
         ? (status === 'Present' ? selectedSiteByWorker[workerId] : null)
-        : (status === 'Present' ? worker.site_id : null);
+        : worker.site_id; // For grounds workers, always store site_id so supervisor filters include all statuses
 
     try {
       const { error } = await supabase.from('attendance').insert({

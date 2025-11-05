@@ -59,6 +59,7 @@ export default function SalariesManagementPage() {
       if (error) throw error;
       return data as Site[];
     },
+    refetchOnMount: 'always',
     refetchInterval: 15000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
@@ -75,6 +76,7 @@ export default function SalariesManagementPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchOnMount: 'always',
     refetchInterval: 15000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
@@ -93,6 +95,7 @@ export default function SalariesManagementPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchOnMount: 'always',
     refetchInterval: 5000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
@@ -109,6 +112,7 @@ export default function SalariesManagementPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchOnMount: 'always',
     refetchInterval: 7000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
@@ -125,6 +129,7 @@ export default function SalariesManagementPage() {
       if (error) throw error;
       return data as any[];
     },
+    refetchOnMount: 'always',
     refetchInterval: 7000,
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
