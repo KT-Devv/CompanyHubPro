@@ -38,7 +38,7 @@ export default function AttendanceManagementPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('workers')
-        .select('*, sites(site_name), portfolios(portfolio_name), positions(position_name)')
+        .select('*, portfolios(portfolio_name), positions(position_name)')
         .order('name');
       if (error) throw error;
       return data as any[];

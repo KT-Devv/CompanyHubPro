@@ -17,22 +17,10 @@ export default function WorkersManagementPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterSite, setFilterSite] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [editWorker, setEditWorker] = useState<any | null>(null);
   const [openAdd, setOpenAdd] = useState(false);
 
-  const { data: sites } = useQuery({
-    queryKey: ['/api/sites'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('sites').select('*').order('site_name');
-      if (error) throw error;
-      return data as Site[];
-    },
-    refetchInterval: 15000,
-    refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
-  });
 
   // Fetch portfolios and positions for form selects
   const { data: portfolios } = useQuery({
@@ -64,7 +52,7 @@ export default function WorkersManagementPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('workers')
-        .select('*, sites(site_name), portfolios(portfolio_name, rate), positions(position_name, rate)')
+        .select('*, portfolios(portfolio_name, rate), positions(position_name, rate)')
         .order('name');
       if (error) throw error;
       return data as any[];
@@ -123,11 +111,10 @@ export default function WorkersManagementPage() {
     const list = workers || [];
     return list.filter((w: any) => {
       const matchesSearch = (w.name || '').toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesSite = filterSite === 'all' || w.site_id === filterSite;
       const matchesType = filterType === 'all' || w.worker_type === filterType;
-      return matchesSearch && matchesSite && matchesType;
+      return matchesSearch && matchesType;
     });
-  }, [workers, searchQuery, filterSite, filterType]);
+  }, [workers, searchQuery, filterType]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
@@ -156,7 +143,6 @@ export default function WorkersManagementPage() {
                 <DialogDescription>Create a new worker</DialogDescription>
               </DialogHeader>
               <WorkerForm
-                sites={sites || []}
                 portfolios={portfolios || []}
                 positions={positions || []}
                 onSubmit={(payload) => addWorkerMutation.mutate(payload)}
@@ -170,7 +156,7 @@ export default function WorkersManagementPage() {
       <Card>
         <CardHeader>
           <CardTitle>Workers</CardTitle>
-          <CardDescription>Search by name, filter by site and type</CardDescription>
+          <CardDescription>Search by name, filter by type</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-3">
@@ -186,21 +172,6 @@ export default function WorkersManagementPage() {
                 />
               </div>
             </div>
-            {sites && (
-              <Select value={filterSite} onValueChange={setFilterSite}>
-                <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-filter-site">
-                  <SelectValue placeholder="Filter by site" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Sites</SelectItem>
-                  {sites.map((site: any) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.site_name || site.siteName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-filter-type">
                 <SelectValue placeholder="Worker type" />
@@ -229,7 +200,6 @@ export default function WorkersManagementPage() {
                     <tr className="border-b">
                       <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Name</th>
                       <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Type</th>
-                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Site</th>
                       <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Portfolio/Position</th>
                       <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Rate (₵)</th>
                       <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Phone</th>
@@ -244,7 +214,6 @@ export default function WorkersManagementPage() {
                         <td className="py-2 sm:py-3 px-2 sm:px-4">
                           <Badge variant="outline" className="text-xs">{w.worker_type}</Badge>
                         </td>
-                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{w.sites?.site_name || '-'}</td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">
                           {w.worker_type === 'grounds' ? (w.portfolios?.portfolio_name || '-') : (w.positions?.position_name || '-')}
                         </td>
@@ -270,7 +239,6 @@ export default function WorkersManagementPage() {
                                 </DialogHeader>
                                 <WorkerForm
                                   initial={w}
-                                  sites={sites || []}
                                   portfolios={portfolios || []}
                                   positions={positions || []}
                                   onSubmit={(payload) => updateWorkerMutation.mutate({ id: w.id, updates: payload })}
@@ -306,9 +274,8 @@ export default function WorkersManagementPage() {
 }
 
 
-function WorkerForm({ initial, sites, portfolios, positions, onSubmit, onCancel }: {
+function WorkerForm({ initial, portfolios, positions, onSubmit, onCancel }: {
   initial?: any;
-  sites: any[];
   portfolios: any[];
   positions: any[];
   onSubmit: (payload: any) => void;
@@ -317,7 +284,6 @@ function WorkerForm({ initial, sites, portfolios, positions, onSubmit, onCancel 
   const [form, setForm] = useState<any>({
     name: initial?.name || '',
     worker_type: initial?.worker_type || 'grounds',
-    site_id: initial?.site_id || '',
     portfolio_id: initial?.portfolio_id || '',
     position_id: initial?.position_id || '',
     phone_number: initial?.phone_number || '',
@@ -334,7 +300,7 @@ function WorkerForm({ initial, sites, portfolios, positions, onSubmit, onCancel 
     const payload: any = {
       name: form.name,
       worker_type: form.worker_type,
-      site_id: form.site_id || null,
+      // site_id is NOT stored in workers table - only tracked in attendance records
       portfolio_id: form.worker_type === 'grounds' ? (form.portfolio_id || null) : null,
       position_id: form.worker_type === 'office' ? (form.position_id || null) : null,
       phone_number: form.phone_number,
@@ -358,26 +324,13 @@ function WorkerForm({ initial, sites, portfolios, positions, onSubmit, onCancel 
         </div>
         <div>
           <Label htmlFor="workerType">Worker Type</Label>
-          <Select value={form.worker_type} onValueChange={(v) => setForm({ ...form, worker_type: v, portfolio_id: '', position_id: '', site_id: v === 'office' ? '' : form.site_id })}>
+          <Select value={form.worker_type} onValueChange={(v) => setForm({ ...form, worker_type: v, portfolio_id: '', position_id: '' })}>
             <SelectTrigger id="workerType">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="grounds">Grounds</SelectItem>
               <SelectItem value="office">Office</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="site">Site</Label>
-          <Select value={form.site_id} onValueChange={(v) => setForm({ ...form, site_id: v })}>
-            <SelectTrigger id="site" disabled={form.worker_type === 'office'}>
-              <SelectValue placeholder="Select site" />
-            </SelectTrigger>
-            <SelectContent>
-              {sites.map((s: any) => (
-                <SelectItem key={s.id} value={s.id}>{s.site_name || s.siteName}</SelectItem>
-              ))}
             </SelectContent>
           </Select>
         </div>

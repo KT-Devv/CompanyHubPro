@@ -48,22 +48,25 @@ CREATE TABLE users (
 );
 
 -- Workers table
+-- Note: site_id is NOT stored here - sites are only tracked in attendance records when supervisors mark attendance
 CREATE TABLE workers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT NOT NULL,
-  dob DATE NOT NULL,
-  worker_type worker_type NOT NULL,
-  site_id UUID REFERENCES sites(id),
+  name TEXT,
+  dob DATE,
+  worker_type worker_type,
   portfolio_id UUID REFERENCES portfolios(id),
   position_id UUID REFERENCES positions(id),
-  date_of_employment DATE NOT NULL,
-  phone_number TEXT NOT NULL,
-  national_id TEXT NOT NULL,
-  contact_person TEXT NOT NULL,
-  cp_phone TEXT NOT NULL,
-  cp_relation TEXT NOT NULL,
-  rate INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+  date_of_employment DATE,
+  phone_number TEXT,
+  national_id TEXT,
+  contact_person TEXT,
+  cp_phone TEXT,
+  cp_relation TEXT,
+  hometown TEXT,
+  current_location TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  CONSTRAINT workers_portfolio_id_fkey FOREIGN KEY (portfolio_id) REFERENCES portfolios(id),
+  CONSTRAINT workers_position_id_fkey FOREIGN KEY (position_id) REFERENCES positions(id)
 );
 
 -- Stores table
@@ -111,7 +114,7 @@ CREATE TABLE invoices (
 CREATE TABLE attendance (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   worker_id UUID REFERENCES workers(id) NOT NULL,
-  site_id UUID REFERENCES sites(id) NOT NULL,
+  site_id UUID REFERENCES sites(id),
   date DATE NOT NULL,
   timestamp TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   status attendance_status NOT NULL,
@@ -144,7 +147,6 @@ CREATE TABLE loans (
 );
 
 -- Create indexes for better query performance
-CREATE INDEX idx_workers_site ON workers(site_id);
 CREATE INDEX idx_workers_type ON workers(worker_type);
 CREATE INDEX idx_attendance_date ON attendance(date);
 CREATE INDEX idx_attendance_worker ON attendance(worker_id);
@@ -195,8 +197,7 @@ CREATE POLICY "Users can view workers" ON workers
       SELECT 1 FROM users u 
       WHERE u.id = auth.uid() 
       AND (
-        u.role IN ('owner', 'hr', 'project_manager')
-        OR (u.role = 'supervisor' AND workers.site_id = u.site_id AND workers.worker_type = 'grounds')
+        u.role IN ('owner', 'hr', 'project_manager', 'supervisor')
         OR (u.role = 'secretary' AND workers.worker_type = 'office')
       )
     )
@@ -294,8 +295,7 @@ CREATE POLICY "Users can view attendance" ON attendance
       SELECT 1 FROM users u
       WHERE u.id = auth.uid()
       AND (
-        u.role IN ('owner', 'hr', 'project_manager')
-        OR (u.role = 'supervisor' AND attendance.site_id = u.site_id)
+        u.role IN ('owner', 'hr', 'project_manager', 'supervisor')
         OR (u.role = 'secretary' AND attendance.worker_type = 'office')
       )
     )

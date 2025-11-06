@@ -25,13 +25,12 @@ export default function AttendancePage() {
 
   // Fetch workers based on role
   const { data: workers, isLoading: loadingWorkers } = useQuery({
-    queryKey: ['/api/workers', userRole, userSiteId],
+    queryKey: ['/api/workers', userRole],
     queryFn: async () => {
-      let query = supabase.from('workers').select('*, sites(site_name), portfolios(portfolio_name), positions(position_name)');
+      let query = supabase.from('workers').select('*, portfolios(portfolio_name), positions(position_name)');
 
-      if (isSupervisor && userSiteId) {
-        query = query.eq('site_id', userSiteId).eq('worker_type', 'grounds');
-      } else if (isSecretary) {
+      // Supervisors can see all workers (both office and grounds)
+      if (isSecretary) {
         query = query.eq('worker_type', 'office');
       }
 
@@ -41,7 +40,7 @@ export default function AttendancePage() {
     },
   });
 
-  // Fetch sites for site selection (used by secretaries for office workers)
+  // Fetch sites for site selection (used for both office and grounds workers when Present)
   const { data: sites } = useQuery({
     queryKey: ['/api/sites'],
     queryFn: async () => {
@@ -53,17 +52,16 @@ export default function AttendancePage() {
 
   // Fetch attendance records for selected date (role-scoped)
   const { data: attendanceRecords, refetch: refetchAttendance } = useQuery({
-    queryKey: ['/api/attendance', selectedDate, userRole, userSiteId],
+    queryKey: ['/api/attendance', selectedDate, userRole],
     queryFn: async () => {
       let query = supabase
         .from('attendance')
         .select('*, workers(name), sites(site_name)')
         .eq('date', selectedDate);
 
-      // Apply role-based filtering
-      if (isSupervisor && userSiteId) {
-        query = query.eq('site_id', userSiteId);
-      } else if (isSecretary) {
+      // Supervisors can see all attendance records
+      // Only secretaries are filtered to office workers
+      if (isSecretary) {
         query = query.eq('worker_type', 'office');
       }
 
@@ -82,8 +80,8 @@ export default function AttendancePage() {
     const worker = workers?.find((w) => w.id === workerId);
     if (!worker) return;
 
-    // Require site for office workers when Present
-    if (worker.worker_type === 'office' && status === 'Present' && !selectedSiteByWorker[workerId]) {
+    // Require site selection for both office and grounds workers when Present
+    if (status === 'Present' && !selectedSiteByWorker[workerId]) {
       toast({
         title: "Site required",
         description: `Select a site for ${worker.name} before marking Present`,
@@ -92,10 +90,8 @@ export default function AttendancePage() {
       return;
     }
 
-    const chosenSiteId =
-      worker.worker_type === 'office'
-        ? (status === 'Present' ? selectedSiteByWorker[workerId] : null)
-        : worker.site_id; // For grounds workers, always store site_id so supervisor filters include all statuses
+    // Site is only required when Present; for Absent/Leave it can be null
+    const chosenSiteId = status === 'Present' ? selectedSiteByWorker[workerId] : null;
 
     try {
       const { error } = await supabase.from('attendance').insert({
@@ -156,7 +152,7 @@ export default function AttendancePage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Mark Attendance</h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            {isSupervisor && 'Mark attendance for your site workers'}
+            {isSupervisor && 'Mark attendance for all workers - select site when Present'}
             {isSecretary && 'Mark attendance for office staff'}
           </p>
         </div>
@@ -217,13 +213,7 @@ export default function AttendancePage() {
                     <div className="flex-1 w-full sm:min-w-[200px]">
                       <p className="font-medium text-sm sm:text-base">{worker.name}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
-                        {worker.worker_type === 'grounds' ? (
-                          <Badge variant="outline" className="text-xs">
-                            {worker.sites?.site_name || 'No site'}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs">Daily site selection</Badge>
-                        )}
+                        <Badge variant="outline" className="text-xs">Daily site selection</Badge>
                         <Badge variant="secondary" className="text-xs">
                           {worker.worker_type}
                         </Badge>
@@ -242,8 +232,8 @@ export default function AttendancePage() {
                         <p className="text-xs text-muted-foreground mt-1">Already marked for this date</p>
                       )}
                     </div>
-                    {/* Site selector for office workers */}
-                    {worker.worker_type === 'office' && !alreadyMarked && (
+                    {/* Site selector for all workers (when Present) */}
+                    {!alreadyMarked && (
                       <div className="w-full sm:w-56">
                         <Select
                           value={selectedSiteByWorker[worker.id] || ''}
@@ -252,7 +242,7 @@ export default function AttendancePage() {
                           }
                         >
                           <SelectTrigger className="w-full" data-testid={`select-site-${worker.id}`}>
-                            <SelectValue placeholder="Select site" />
+                            <SelectValue placeholder="Select site (required for Present)" />
                           </SelectTrigger>
                           <SelectContent>
                             {(sites || []).map((site: any) => (

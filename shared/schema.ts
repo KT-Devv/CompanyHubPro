@@ -46,21 +46,22 @@ export const positions = pgTable("positions", {
 });
 
 // Workers table
+// Note: site_id is NOT stored here - sites are only tracked in attendance records when marking attendance
 export const workers = pgTable("workers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull(),
-  dob: date("dob").notNull(),
-  workerType: workerTypeEnum("worker_type").notNull(),
-  siteId: varchar("site_id").references(() => sites.id),
+  name: text("name"),
+  dob: date("dob"),
+  workerType: workerTypeEnum("worker_type"),
   portfolioId: varchar("portfolio_id").references(() => portfolios.id),
   positionId: varchar("position_id").references(() => positions.id),
-  dateOfEmployment: date("date_of_employment").notNull(),
-  phoneNumber: text("phone_number").notNull(),
-  nationalId: text("national_id").notNull(),
-  contactPerson: text("contact_person").notNull(),
-  cpPhone: text("cp_phone").notNull(),
-  cpRelation: text("cp_relation").notNull(),
-  rate: integer("rate").notNull().default(0),
+  dateOfEmployment: date("date_of_employment"),
+  phoneNumber: text("phone_number"),
+  nationalId: text("national_id"),
+  contactPerson: text("contact_person"),
+  cpPhone: text("cp_phone"),
+  cpRelation: text("cp_relation"),
+  hometown: text("hometown"),
+  currentLocation: text("current_location"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

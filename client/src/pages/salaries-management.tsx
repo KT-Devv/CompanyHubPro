@@ -13,13 +13,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { DollarSign, Search, Calendar, Calculator, Plus, X } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isSameMonth, isSameYear, getDaysInMonth } from 'date-fns';
-import type { Worker, Site } from '@shared/schema';
+import type { Worker } from '@shared/schema';
 
 interface SalaryCalculation {
   workerId: string;
   workerName: string;
   workerType: string;
-  siteName: string;
   rate: number;
   daysPresent: number;
   baseSalary: number;
@@ -38,7 +37,6 @@ export default function SalariesManagementPage() {
   });
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterSite, setFilterSite] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [showAdvanceDialog, setShowAdvanceDialog] = useState(false);
   const [showLoanDialog, setShowLoanDialog] = useState(false);
@@ -51,19 +49,6 @@ export default function SalariesManagementPage() {
   const isCurrentMonth = isSameMonth(selectedDate, now) && isSameYear(selectedDate, now);
   const monthName = format(selectedDate, 'MMMM yyyy');
   
-  // Fetch sites
-  const { data: sites } = useQuery({
-    queryKey: ['/api/sites'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('sites').select('*').order('site_name');
-      if (error) throw error;
-      return data as Site[];
-    },
-    refetchOnMount: 'always',
-    refetchInterval: 15000,
-    refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
-  });
 
   // Fetch workers with their rates from portfolios and positions
   const { data: workers, isLoading: loadingWorkers } = useQuery({
@@ -71,7 +56,7 @@ export default function SalariesManagementPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('workers')
-        .select('*, sites(site_name), portfolios(portfolio_name, rate), positions(position_name, rate)')
+        .select('*, portfolios(portfolio_name, rate), positions(position_name, rate)')
         .order('name');
       if (error) throw error;
       return data as any[];
@@ -163,7 +148,6 @@ export default function SalariesManagementPage() {
           workerId: worker.id,
           workerName: worker.name,
           workerType: worker.worker_type,
-          siteName: worker.sites?.site_name || '-',
           rate: rate,
           daysPresent: daysPresent,
           baseSalary: baseSalary,
@@ -188,7 +172,6 @@ export default function SalariesManagementPage() {
           workerId: worker.id,
           workerName: worker.name,
           workerType: worker.worker_type,
-          siteName: worker.sites?.site_name || '-',
           rate: baseSalary,
           daysPresent: 0,
           baseSalary: baseSalary,
@@ -213,19 +196,15 @@ export default function SalariesManagementPage() {
       );
     }
 
-    if (filterSite !== 'all') {
-      filtered = filtered.filter((calc) => {
-        const worker = workers?.find((w: any) => w.id === calc.workerId);
-        return worker?.site_id === filterSite;
-      });
-    }
+    // Site filtering removed - workers don't have site_id anymore
+    // Sites are only tracked in attendance records
 
     if (filterType !== 'all') {
       filtered = filtered.filter((calc) => calc.workerType === filterType);
     }
 
     return filtered;
-  }, [salaryCalculations, searchQuery, filterSite, filterType, workers]);
+  }, [salaryCalculations, searchQuery, filterType, workers]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -288,11 +267,10 @@ export default function SalariesManagementPage() {
   });
 
   const handleExport = () => {
-    const headers = ['Worker Name', 'Type', 'Site', 'Rate/Monthly Salary', 'Days Present', 'Base Salary', 'Advances', 'Loans', 'Final Salary'];
+    const headers = ['Worker Name', 'Type', 'Rate/Monthly Salary', 'Days Present', 'Base Salary', 'Advances', 'Loans', 'Final Salary'];
     const rows = filteredCalculations.map((calc) => [
       calc.workerName,
       calc.workerType,
-      calc.siteName,
       calc.rate.toString(),
       calc.isFixed ? 'Fixed' : calc.daysPresent.toString(),
       calc.baseSalary.toString(),
@@ -476,21 +454,6 @@ export default function SalariesManagementPage() {
                 />
               </div>
             </div>
-            {sites && (
-              <Select value={filterSite} onValueChange={setFilterSite}>
-                <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-filter-site">
-                  <SelectValue placeholder="Filter by site" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Sites</SelectItem>
-                  {sites.map((site: any) => (
-                    <SelectItem key={site.id} value={site.id}>
-                      {site.site_name || site.siteName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-filter-type">
                 <SelectValue placeholder="Worker type" />
@@ -524,9 +487,6 @@ export default function SalariesManagementPage() {
                       </th>
                       <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         Type
-                      </th>
-                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Site
                       </th>
                       <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         Rate/Monthly (₵)
@@ -565,7 +525,6 @@ export default function SalariesManagementPage() {
                             {calc.workerType}
                           </Badge>
                         </td>
-                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{calc.siteName}</td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">₵{calc.rate.toLocaleString()}</td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">
                           {calc.isFixed ? (
