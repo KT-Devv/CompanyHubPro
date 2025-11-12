@@ -46,7 +46,9 @@ export const positions = pgTable("positions", {
 });
 
 // Workers table
-// Note: site_id is NOT stored here - sites are only tracked in attendance records when marking attendance
+// permanent_site_id: Permanent site allocation for the worker
+// temporary_site_id: Temporary site marked daily for attendance
+// For helpers portfolio, only permanent_site_id is used (temporary should match permanent)
 export const workers = pgTable("workers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name"),
@@ -54,6 +56,8 @@ export const workers = pgTable("workers", {
   workerType: workerTypeEnum("worker_type"),
   portfolioId: varchar("portfolio_id").references(() => portfolios.id),
   positionId: varchar("position_id").references(() => positions.id),
+  permanentSiteId: varchar("permanent_site_id").references(() => sites.id),
+  temporarySiteId: varchar("temporary_site_id").references(() => sites.id),
   dateOfEmployment: date("date_of_employment"),
   phoneNumber: text("phone_number"),
   nationalId: text("national_id"),
