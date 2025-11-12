@@ -9,11 +9,11 @@ export default function WelcomeSecretary() {
   const { userFullName } = useAuth();
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="max-w-4xl mx-auto space-y-8">
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-2 animate-in fade-in slide-in-from-top-4 duration-700">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-full bg-primary flex items-center justify-center">
+            <div className="h-16 w-16 rounded-full bg-primary flex items-center justify-center transition-transform hover:scale-110 duration-300">
               <FileText className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
@@ -25,7 +25,7 @@ export default function WelcomeSecretary() {
           </p>
         </div>
 
-        <Card className="max-w-md mx-auto transition-all hover:shadow-lg">
+        <Card className="max-w-md mx-auto transition-all hover:shadow-lg hover:scale-[1.02] duration-300 animate-in fade-in slide-in-from-bottom-6 delay-300">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl">Attendance</CardTitle>

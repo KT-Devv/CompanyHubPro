@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import type { Worker, Site } from '@shared/schema';
-import { Search, Users, Plus, Pencil, Trash2, Eye, X } from 'lucide-react';
+import { Search, Users, Plus, Pencil, Trash2, Eye, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function WorkersManagementPage() {
@@ -21,6 +21,8 @@ export default function WorkersManagementPage() {
   const [editWorker, setEditWorker] = useState<any | null>(null);
   const [viewWorker, setViewWorker] = useState<any | null>(null);
   const [openAdd, setOpenAdd] = useState(false);
+  const [sortColumn, setSortColumn] = useState<string>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
 
   // Fetch portfolios and positions for form selects
@@ -132,14 +134,81 @@ export default function WorkersManagementPage() {
     },
   });
 
-  const filteredWorkers = useMemo(() => {
+  const filteredAndSortedWorkers = useMemo(() => {
     const list = workers || [];
-    return list.filter((w: any) => {
+    const filtered = list.filter((w: any) => {
       const matchesSearch = (w.name || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType = filterType === 'all' || w.worker_type === filterType;
       return matchesSearch && matchesType;
     });
-  }, [workers, searchQuery, filterType]);
+
+    // Sort the filtered list
+    const sorted = [...filtered].sort((a: any, b: any) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortColumn) {
+        case 'name':
+          aValue = (a.name || '').toLowerCase();
+          bValue = (b.name || '').toLowerCase();
+          break;
+        case 'portfolio':
+          aValue = a.worker_type === 'grounds' 
+            ? (a.portfolios?.portfolio_name || '').toLowerCase()
+            : (a.positions?.position_name || '').toLowerCase();
+          bValue = b.worker_type === 'grounds'
+            ? (b.portfolios?.portfolio_name || '').toLowerCase()
+            : (b.positions?.position_name || '').toLowerCase();
+          break;
+        case 'site':
+          aValue = (a.permanent_site?.site_name || '').toLowerCase();
+          bValue = (b.permanent_site?.site_name || '').toLowerCase();
+          break;
+        case 'phone':
+          aValue = (a.phone_number || '').toLowerCase();
+          bValue = (b.phone_number || '').toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [workers, searchQuery, filterType, sortColumn, sortDirection]);
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortButton = ({ column, children }: { column: string; children: React.ReactNode }) => {
+    const isActive = sortColumn === column;
+    return (
+      <button
+        onClick={() => handleSort(column)}
+        className="flex items-center gap-1 hover:text-foreground transition-colors"
+      >
+        {children}
+        {isActive ? (
+          sortDirection === 'asc' ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-50" />
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -153,7 +222,7 @@ export default function WorkersManagementPage() {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Users className="h-4 w-4 sm:h-5 sm:w-5" />
-            <span className="text-xs sm:text-sm">{filteredWorkers.length} total</span>
+            <span className="text-xs sm:text-sm">{filteredAndSortedWorkers.length} total</span>
           </div>
           <Dialog open={openAdd} onOpenChange={setOpenAdd}>
             <DialogTrigger asChild>
@@ -214,7 +283,7 @@ export default function WorkersManagementPage() {
             <div className="space-y-2">
               {[1,2,3,4,5].map((i) => <Skeleton key={i} className="h-16" />)}
             </div>
-          ) : filteredWorkers.length === 0 ? (
+          ) : filteredAndSortedWorkers.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               No workers found for the selected filters
             </div>
@@ -224,15 +293,23 @@ export default function WorkersManagementPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Name</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Portfolio/Position</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Permanent Site</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Phone Number</th>
+                      <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <SortButton column="name">Name</SortButton>
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <SortButton column="portfolio">Portfolio/Position</SortButton>
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <SortButton column="site">Permanent Site</SortButton>
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <SortButton column="phone">Phone Number</SortButton>
+                      </th>
                       <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredWorkers.map((w: any, idx: number) => (
+                    {filteredAndSortedWorkers.map((w: any, idx: number) => (
                       <tr 
                         key={w.id} 
                         className={`border-b transition-all duration-200 hover:bg-muted/50 hover:shadow-sm ${idx % 2 === 0 ? 'bg-muted/20' : ''} animate-in fade-in slide-in-from-left-4`}

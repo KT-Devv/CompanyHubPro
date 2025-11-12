@@ -12,6 +12,7 @@ import { Calendar, CheckCircle2, XCircle, Coffee, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Worker, Attendance } from '@shared/schema';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 export default function AttendancePage() {
   const { userRole, userId, userSiteId } = useAuth();
@@ -27,16 +28,28 @@ export default function AttendancePage() {
   const { data: workers, isLoading: loadingWorkers } = useQuery({
     queryKey: ['/api/workers', userRole],
     queryFn: async () => {
-      let query = supabase.from('workers').select('*, portfolios(portfolio_name), positions(position_name)');
+      let query = supabase.from('workers').select('*, portfolios(portfolio_name, id), positions(position_name, id)');
 
       // Supervisors can see all workers (both office and grounds)
       if (isSecretary) {
         query = query.eq('worker_type', 'office');
       }
 
-      const { data, error } = await query.order('name');
-      if (error) throw error;
-      return data as any[];
+      const { data: workersData, error: workersError } = await query.order('name');
+      if (workersError) throw workersError;
+
+      // Fetch sites separately and join
+      const { data: sitesData, error: sitesError } = await supabase
+        .from('sites')
+        .select('id, site_name');
+      if (sitesError) throw sitesError;
+
+      // Join sites data
+      return (workersData || []).map((worker: any) => ({
+        ...worker,
+        permanent_site: sitesData?.find((s: any) => s.id === worker.permanent_site_id),
+        temporary_site: sitesData?.find((s: any) => s.id === worker.temporary_site_id),
+      }));
     },
   });
 
@@ -49,6 +62,7 @@ export default function AttendancePage() {
       return data as any[];
     },
   });
+
 
   // Fetch attendance records for selected date (role-scoped)
   const { data: attendanceRecords, refetch: refetchAttendance } = useQuery({
@@ -80,18 +94,32 @@ export default function AttendancePage() {
     const worker = workers?.find((w) => w.id === workerId);
     if (!worker) return;
 
-    // Require site selection for both office and grounds workers when Present
-    if (status === 'Present' && !selectedSiteByWorker[workerId]) {
-      toast({
-        title: "Site required",
-        description: `Select a site for ${worker.name} before marking Present`,
-        variant: "destructive",
-      });
-      return;
-    }
+    // For Present status, determine the site to use
+    let chosenSiteId: string | null = null;
+    if (status === 'Present') {
+      // Check if portfolio is "helpers" or if temporary equals permanent
+      const isHelpers = worker.worker_type === 'grounds' && 
+        worker.portfolios?.portfolio_name?.toLowerCase() === 'helpers';
+      const tempEqualsPermanent = worker.temporary_site_id === worker.permanent_site_id;
+      const showOnlyPermanent = isHelpers || tempEqualsPermanent || !worker.temporary_site_id;
 
-    // Site is only required when Present; for Absent/Leave it can be null
-    const chosenSiteId = status === 'Present' ? selectedSiteByWorker[workerId] : null;
+      if (showOnlyPermanent) {
+        // For helpers or when temp = permanent, use permanent site
+        chosenSiteId = worker.permanent_site_id;
+      } else {
+        // Otherwise, use selected temporary site from dropdown, or default to worker's temporary site
+        chosenSiteId = selectedSiteByWorker[workerId] || worker.temporary_site_id || worker.permanent_site_id;
+      }
+      
+      if (!chosenSiteId) {
+        toast({
+          title: "Site required",
+          description: `Select a temporary site for ${worker.name} before marking Present`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
     try {
       const { error } = await supabase.from('attendance').insert({
@@ -147,9 +175,9 @@ export default function AttendancePage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+        <div className="animate-in fade-in slide-in-from-left-4 duration-700">
           <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Mark Attendance</h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             {isSupervisor && 'Mark attendance for all workers - select site when Present'}
@@ -168,7 +196,7 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      <Card>
+      <Card className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-150">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 space-y-0 pb-4">
           <div>
             <CardTitle className="text-lg sm:text-xl">Mark Attendance</CardTitle>
@@ -205,15 +233,15 @@ export default function AttendancePage() {
                 return (
                   <div
                     key={worker.id}
-                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-md border ${
-                      alreadyMarked ? 'bg-muted/50 opacity-60' : 'bg-card'
-                    }`}
+                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-md border transition-all duration-200 hover:shadow-sm ${
+                      alreadyMarked ? 'bg-muted/50 opacity-60' : 'bg-card hover:bg-muted/30'
+                    } animate-in fade-in slide-in-from-left-4`}
+                    style={{ animationDelay: `${filteredWorkers.indexOf(worker) * 50}ms` }}
                     data-testid={`worker-row-${worker.id}`}
                   >
                     <div className="flex-1 w-full sm:min-w-[200px]">
                       <p className="font-medium text-sm sm:text-base">{worker.name}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">Daily site selection</Badge>
                         <Badge variant="secondary" className="text-xs">
                           {worker.worker_type}
                         </Badge>
@@ -232,28 +260,50 @@ export default function AttendancePage() {
                         <p className="text-xs text-muted-foreground mt-1">Already marked for this date</p>
                       )}
                     </div>
-                    {/* Site selector for all workers (when Present) */}
-                    {!alreadyMarked && (
-                      <div className="w-full sm:w-56">
-                        <Select
-                          value={selectedSiteByWorker[worker.id] || ''}
-                          onValueChange={(val) =>
-                            setSelectedSiteByWorker((prev) => ({ ...prev, [worker.id]: val }))
-                          }
-                        >
-                          <SelectTrigger className="w-full" data-testid={`select-site-${worker.id}`}>
-                            <SelectValue placeholder="Select site (required for Present)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(sites || []).map((site: any) => (
-                              <SelectItem key={site.id} value={site.id}>
-                                {site.site_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                    {/* Site selectors - check if portfolio is "helpers" */}
+                    {!alreadyMarked && (() => {
+                      const isHelpers = worker.worker_type === 'grounds' && 
+                        worker.portfolios?.portfolio_name?.toLowerCase() === 'helpers';
+                      const tempEqualsPermanent = worker.temporary_site_id === worker.permanent_site_id;
+                      const showOnlyPermanent = isHelpers || tempEqualsPermanent || !worker.temporary_site_id;
+
+                      return (
+                        <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[200px]">
+                          {/* Permanent Site - always shown, read-only */}
+                          {worker.permanent_site && (
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Permanent Site</Label>
+                              <div className="px-3 py-2 border rounded-md bg-muted/50 text-sm">
+                                {worker.permanent_site.site_name}
+                              </div>
+                            </div>
+                          )}
+                          {/* Temporary Site - dropdown, only show if not helpers and temp != permanent */}
+                          {!showOnlyPermanent && (
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Temporary Site</Label>
+                              <Select
+                                value={selectedSiteByWorker[worker.id] || worker.temporary_site_id || ''}
+                                onValueChange={(val) =>
+                                  setSelectedSiteByWorker((prev) => ({ ...prev, [worker.id]: val }))
+                                }
+                              >
+                                <SelectTrigger className="w-full" data-testid={`select-site-${worker.id}`}>
+                                  <SelectValue placeholder="Select temporary site" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(sites || []).map((site: any) => (
+                                    <SelectItem key={site.id} value={site.id}>
+                                      {site.site_name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                       <Button
                         size="sm"

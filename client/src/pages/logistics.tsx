@@ -110,9 +110,9 @@ export default function LogisticsPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="p-6 lg:p-8 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+        <div className="animate-in fade-in slide-in-from-left-4 duration-700">
           <h1 className="text-2xl font-semibold text-foreground">Logistics Management</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage inventory across all stores

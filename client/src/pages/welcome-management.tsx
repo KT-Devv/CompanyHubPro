@@ -15,11 +15,11 @@ export default function WelcomeManagement() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
+    <div className="p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-2 animate-in fade-in slide-in-from-top-4 duration-700">
           <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-primary flex items-center justify-center">
+            <div className="h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-primary flex items-center justify-center transition-transform hover:scale-110 duration-300">
               <Building2 className="h-6 w-6 sm:h-10 sm:w-10 text-primary-foreground" />
             </div>
           </div>
@@ -32,7 +32,7 @@ export default function WelcomeManagement() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-          <Card className="transition-all hover:shadow-lg">
+          <Card className="transition-all hover:shadow-lg hover:scale-[1.02] duration-300 animate-in fade-in slide-in-from-left-4" style={{ animationDelay: '100ms' }}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg sm:text-xl">All Workers</CardTitle>
@@ -55,11 +55,11 @@ export default function WelcomeManagement() {
               </Button>
             </CardContent>
           </Card>
-          <Card className="transition-all hover:shadow-lg">
+          <Card className="transition-all hover:shadow-lg hover:scale-[1.02] duration-300 animate-in fade-in slide-in-from-right-4" style={{ animationDelay: '200ms' }}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg sm:text-xl">Attendance Management</CardTitle>
-                <ClipboardCheck className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+                <ClipboardCheck className="h-6 w-6 sm:h-8 sm:w-8 text-primary transition-transform hover:scale-110 duration-300" />
               </div>
               <CardDescription className="text-xs sm:text-sm">
                 View and manage attendance records for all workers. Query attendance by date, site, or worker.
@@ -68,7 +68,7 @@ export default function WelcomeManagement() {
             <CardContent>
               <Button 
                 onClick={() => setLocation('/attendance-management')}
-                className="w-full"
+                className="w-full transition-all hover:scale-105 duration-200"
                 size="lg"
                 data-testid="button-go-attendance"
               >
@@ -78,11 +78,11 @@ export default function WelcomeManagement() {
             </CardContent>
           </Card>
 
-          <Card className="transition-all hover:shadow-lg">
+          <Card className="transition-all hover:shadow-lg hover:scale-[1.02] duration-300 animate-in fade-in slide-in-from-left-4" style={{ animationDelay: '300ms' }}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg sm:text-xl">Salaries</CardTitle>
-                <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+                <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-primary transition-transform hover:scale-110 duration-300" />
               </div>
               <CardDescription className="text-xs sm:text-sm">
                 Calculate salaries: Ground workers (days × portfolio rate) and Office workers (fixed monthly). Export salary reports.
@@ -91,7 +91,7 @@ export default function WelcomeManagement() {
             <CardContent>
               <Button 
                 onClick={() => setLocation('/salaries-management')}
-                className="w-full"
+                className="w-full transition-all hover:scale-105 duration-200"
                 size="lg"
                 variant="outline"
                 data-testid="button-go-salaries"
@@ -102,7 +102,7 @@ export default function WelcomeManagement() {
             </CardContent>
           </Card>
 
-          <Card className="transition-all hover:shadow-lg">
+          <Card className="transition-all hover:shadow-lg hover:scale-[1.02] duration-300 animate-in fade-in slide-in-from-right-4" style={{ animationDelay: '400ms' }}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg sm:text-xl">Logistics</CardTitle>
