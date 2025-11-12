@@ -44,11 +44,10 @@ export default function AttendancePage() {
         .select('id, site_name');
       if (sitesError) throw sitesError;
 
-      // Join sites data
+      // Join sites data (only permanent site, temporary is in attendance)
       return (workersData || []).map((worker: any) => ({
         ...worker,
         permanent_site: sitesData?.find((s: any) => s.id === worker.permanent_site_id),
-        temporary_site: sitesData?.find((s: any) => s.id === worker.temporary_site_id),
       }));
     },
   });
@@ -97,24 +96,31 @@ export default function AttendancePage() {
     // For Present status, determine the site to use
     let chosenSiteId: string | null = null;
     if (status === 'Present') {
-      // Check if portfolio is "helpers" or if temporary equals permanent
+      // Check if portfolio is "helpers"
       const isHelpers = worker.worker_type === 'grounds' && 
         worker.portfolios?.portfolio_name?.toLowerCase() === 'helpers';
-      const tempEqualsPermanent = worker.temporary_site_id === worker.permanent_site_id;
-      const showOnlyPermanent = isHelpers || tempEqualsPermanent || !worker.temporary_site_id;
 
-      if (showOnlyPermanent) {
-        // For helpers or when temp = permanent, use permanent site
+      if (isHelpers) {
+        // For helpers, use permanent site
         chosenSiteId = worker.permanent_site_id;
       } else {
-        // Otherwise, use selected temporary site from dropdown, or default to worker's temporary site
-        chosenSiteId = selectedSiteByWorker[workerId] || worker.temporary_site_id || worker.permanent_site_id;
+        // For others, use selected temporary site from dropdown
+        chosenSiteId = selectedSiteByWorker[workerId];
+        
+        if (!chosenSiteId) {
+          toast({
+            title: "Site required",
+            description: `Select a temporary site for ${worker.name} before marking Present`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
       
       if (!chosenSiteId) {
         toast({
           title: "Site required",
-          description: `Select a temporary site for ${worker.name} before marking Present`,
+          description: `${worker.name} must have a permanent site assigned`,
           variant: "destructive",
         });
         return;
@@ -264,8 +270,6 @@ export default function AttendancePage() {
                     {!alreadyMarked && (() => {
                       const isHelpers = worker.worker_type === 'grounds' && 
                         worker.portfolios?.portfolio_name?.toLowerCase() === 'helpers';
-                      const tempEqualsPermanent = worker.temporary_site_id === worker.permanent_site_id;
-                      const showOnlyPermanent = isHelpers || tempEqualsPermanent || !worker.temporary_site_id;
 
                       return (
                         <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[200px]">
@@ -278,12 +282,12 @@ export default function AttendancePage() {
                               </div>
                             </div>
                           )}
-                          {/* Temporary Site - dropdown, only show if not helpers and temp != permanent */}
-                          {!showOnlyPermanent && (
+                          {/* Temporary Site - dropdown, only show if NOT helpers */}
+                          {!isHelpers && (
                             <div>
                               <Label className="text-xs text-muted-foreground mb-1 block">Temporary Site</Label>
                               <Select
-                                value={selectedSiteByWorker[worker.id] || worker.temporary_site_id || ''}
+                                value={selectedSiteByWorker[worker.id] || ''}
                                 onValueChange={(val) =>
                                   setSelectedSiteByWorker((prev) => ({ ...prev, [worker.id]: val }))
                                 }

@@ -47,8 +47,8 @@ export const positions = pgTable("positions", {
 
 // Workers table
 // permanent_site_id: Permanent site allocation for the worker
-// temporary_site_id: Temporary site marked daily for attendance
-// For helpers portfolio, only permanent_site_id is used (temporary should match permanent)
+// Note: Temporary site is NOT stored here - it's stored in attendance table when marking attendance
+// For helpers portfolio, only permanent_site_id is used
 export const workers = pgTable("workers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name"),
@@ -57,7 +57,6 @@ export const workers = pgTable("workers", {
   portfolioId: varchar("portfolio_id").references(() => portfolios.id),
   positionId: varchar("position_id").references(() => positions.id),
   permanentSiteId: varchar("permanent_site_id").references(() => sites.id),
-  temporarySiteId: varchar("temporary_site_id").references(() => sites.id),
   dateOfEmployment: date("date_of_employment"),
   phoneNumber: text("phone_number"),
   nationalId: text("national_id"),
@@ -111,10 +110,12 @@ export const invoices = pgTable("invoices", {
 });
 
 // Attendance table
+// site_id: Temporary site selected when marking attendance (for Present status)
+// This is the site the worker is assigned to for that specific day
 export const attendance = pgTable("attendance", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workerId: varchar("worker_id").references(() => workers.id).notNull(),
-  siteId: varchar("site_id").references(() => sites.id),
+  siteId: varchar("site_id").references(() => sites.id), // Temporary site for this attendance record
   date: date("date").notNull(),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   status: attendanceStatusEnum("status").notNull(),

@@ -76,11 +76,10 @@ export default function WorkersManagementPage() {
         .select('id, site_name');
       if (sitesError) throw sitesError;
       
-      // Join sites data
+      // Join sites data (only permanent site, temporary is in attendance)
       return (workersData || []).map((worker: any) => ({
         ...worker,
         permanent_site: sitesData?.find((s: any) => s.id === worker.permanent_site_id),
-        temporary_site: sitesData?.find((s: any) => s.id === worker.temporary_site_id),
       }));
     },
     staleTime: 30 * 1000, // 30 seconds
@@ -427,10 +426,6 @@ function WorkerDetailsView({ worker }: { worker: any }) {
           <p className="text-sm font-medium mt-1">{worker.permanent_site?.site_name || '-'}</p>
         </div>
         <div>
-          <Label className="text-muted-foreground">Temporary Site</Label>
-          <p className="text-sm font-medium mt-1">{worker.temporary_site?.site_name || '-'}</p>
-        </div>
-        <div>
           <Label className="text-muted-foreground">Phone Number</Label>
           <p className="text-sm font-medium mt-1">{worker.phone_number || '-'}</p>
         </div>
@@ -485,7 +480,6 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
     portfolio_id: initial?.portfolio_id || '',
     position_id: initial?.position_id || '',
     permanent_site_id: initial?.permanent_site_id || '',
-    temporary_site_id: initial?.temporary_site_id || '',
     phone_number: initial?.phone_number || '',
     national_id: initial?.national_id || '',
     dob: initial?.dob || '',
@@ -504,26 +498,19 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
     return selectedPortfolio?.portfolio_name?.toLowerCase() === 'helpers';
   }, [form.portfolio_id, form.worker_type, portfolios]);
 
-  // When portfolio changes, if it's helpers, sync temporary site with permanent
+  // When portfolio changes
   const handlePortfolioChange = (portfolioId: string) => {
-    const portfolio = portfolios.find((p: any) => p.id === portfolioId);
-    const isHelpersPortfolio = portfolio?.portfolio_name?.toLowerCase() === 'helpers';
-    
     setForm((prev: any) => ({
       ...prev,
       portfolio_id: portfolioId,
-      // If helpers, set temporary site to match permanent site
-      temporary_site_id: isHelpersPortfolio ? prev.permanent_site_id : prev.temporary_site_id,
     }));
   };
 
-  // When permanent site changes for helpers, update temporary site too
+  // When permanent site changes
   const handlePermanentSiteChange = (siteId: string) => {
     setForm((prev: any) => ({
       ...prev,
       permanent_site_id: siteId,
-      // If helpers, sync temporary site with permanent
-      temporary_site_id: isHelpers ? siteId : prev.temporary_site_id,
     }));
   };
 
@@ -535,8 +522,6 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
       portfolio_id: form.worker_type === 'grounds' ? (form.portfolio_id || null) : null,
       position_id: form.worker_type === 'office' ? (form.position_id || null) : null,
       permanent_site_id: form.permanent_site_id || null,
-      // For helpers, temporary should match permanent. Otherwise use the selected temporary site
-      temporary_site_id: isHelpers ? (form.permanent_site_id || null) : (form.temporary_site_id || null),
       phone_number: form.phone_number,
       national_id: form.national_id,
       dob: form.dob || null,
@@ -598,33 +583,6 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
             </SelectContent>
           </Select>
         </div>
-        {form.worker_type === 'grounds' && !isHelpers && (
-          <div>
-            <Label htmlFor="temporarySite">Temporary Site</Label>
-            <Select value={form.temporary_site_id} onValueChange={(v) => setForm({ ...form, temporary_site_id: v })}>
-              <SelectTrigger id="temporarySite">
-                <SelectValue placeholder="Select temporary site" />
-              </SelectTrigger>
-              <SelectContent>
-                {sites.map((s: Site) => (
-                  <SelectItem key={s.id} value={s.id}>{s.siteName}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        {form.worker_type === 'grounds' && isHelpers && (
-          <div>
-            <Label htmlFor="temporarySite">Temporary Site</Label>
-            <Input 
-              id="temporarySite" 
-              value={sites.find((s: Site) => s.id === form.permanent_site_id)?.siteName || 'Same as Permanent Site'} 
-              disabled 
-              className="bg-muted"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Helpers use the same site for permanent and temporary</p>
-          </div>
-        )}
         {form.worker_type === 'office' && (
           <div>
             <Label htmlFor="position">Position</Label>
