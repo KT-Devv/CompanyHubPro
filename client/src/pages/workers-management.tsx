@@ -76,10 +76,10 @@ export default function WorkersManagementPage() {
         .select('id, site_name');
       if (sitesError) throw sitesError;
       
-      // Join sites data (only permanent site, temporary is in attendance)
+      // Join sites data (only allocated site, current site is in attendance)
       return (workersData || []).map((worker: any) => ({
         ...worker,
-        permanent_site: sitesData?.find((s: any) => s.id === worker.permanent_site_id),
+        allocated_site: sitesData?.find((s: any) => s.id === worker.allocated_site_id),
       }));
     },
     staleTime: 30 * 1000, // 30 seconds
@@ -160,8 +160,8 @@ export default function WorkersManagementPage() {
             : (b.positions?.position_name || '').toLowerCase();
           break;
         case 'site':
-          aValue = (a.permanent_site?.site_name || '').toLowerCase();
-          bValue = (b.permanent_site?.site_name || '').toLowerCase();
+          aValue = (a.allocated_site?.site_name || '').toLowerCase();
+          bValue = (b.allocated_site?.site_name || '').toLowerCase();
           break;
         case 'phone':
           aValue = (a.phone_number || '').toLowerCase();
@@ -299,7 +299,7 @@ export default function WorkersManagementPage() {
                         <SortButton column="portfolio">Portfolio/Position</SortButton>
                       </th>
                       <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        <SortButton column="site">Permanent Site</SortButton>
+                        <SortButton column="site">Allocated Site</SortButton>
                       </th>
                       <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         <SortButton column="phone">Phone Number</SortButton>
@@ -319,7 +319,7 @@ export default function WorkersManagementPage() {
                           {w.worker_type === 'grounds' ? (w.portfolios?.portfolio_name || '-') : (w.positions?.position_name || '-')}
                         </td>
                         <td className="py-3 px-4 text-sm">
-                          {w.permanent_site?.site_name || '-'}
+                          {w.allocated_site?.site_name || '-'}
                         </td>
                         <td className="py-3 px-4 text-sm">{w.phone_number || '-'}</td>
                         <td className="py-3 px-4">
@@ -422,8 +422,8 @@ function WorkerDetailsView({ worker }: { worker: any }) {
           </p>
         </div>
         <div>
-          <Label className="text-muted-foreground">Permanent Site</Label>
-          <p className="text-sm font-medium mt-1">{worker.permanent_site?.site_name || '-'}</p>
+          <Label className="text-muted-foreground">Allocated Site</Label>
+          <p className="text-sm font-medium mt-1">{worker.allocated_site?.site_name || '-'}</p>
         </div>
         <div>
           <Label className="text-muted-foreground">Phone Number</Label>
@@ -479,7 +479,7 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
     worker_type: initial?.worker_type || 'grounds',
     portfolio_id: initial?.portfolio_id || '',
     position_id: initial?.position_id || '',
-    permanent_site_id: initial?.permanent_site_id || '',
+    allocated_site_id: initial?.allocated_site_id || '',
     phone_number: initial?.phone_number || '',
     national_id: initial?.national_id || '',
     dob: initial?.dob || '',
@@ -506,11 +506,11 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
     }));
   };
 
-  // When permanent site changes
-  const handlePermanentSiteChange = (siteId: string) => {
+  // When allocated site changes
+  const handleAllocatedSiteChange = (siteId: string) => {
     setForm((prev: any) => ({
       ...prev,
-      permanent_site_id: siteId,
+      allocated_site_id: siteId,
     }));
   };
 
@@ -521,7 +521,7 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
       worker_type: form.worker_type,
       portfolio_id: form.worker_type === 'grounds' ? (form.portfolio_id || null) : null,
       position_id: form.worker_type === 'office' ? (form.position_id || null) : null,
-      permanent_site_id: form.permanent_site_id || null,
+      allocated_site_id: form.allocated_site_id || null,
       phone_number: form.phone_number,
       national_id: form.national_id,
       dob: form.dob || null,
@@ -571,10 +571,10 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
           </div>
         )}
         <div>
-          <Label htmlFor="permanentSite">Permanent Site</Label>
-          <Select value={form.permanent_site_id} onValueChange={handlePermanentSiteChange}>
-            <SelectTrigger id="permanentSite">
-              <SelectValue placeholder="Select permanent site" />
+          <Label htmlFor="allocatedSite">Allocated Site</Label>
+          <Select value={form.allocated_site_id} onValueChange={handleAllocatedSiteChange}>
+            <SelectTrigger id="allocatedSite">
+              <SelectValue placeholder="Select allocated site" />
             </SelectTrigger>
             <SelectContent>
               {sites.map((s: Site) => (

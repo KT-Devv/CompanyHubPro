@@ -26,14 +26,15 @@ export default function AttendancePage() {
 
   // Fetch workers based on role
   const { data: workers, isLoading: loadingWorkers } = useQuery({
-    queryKey: ['/api/workers', userRole],
+    queryKey: ['/api/workers', userRole, userSiteId],
     queryFn: async () => {
       let query = supabase.from('workers').select('*, portfolios(portfolio_name, id), positions(position_name, id)');
 
-      // Supervisors can see all workers (both office and grounds)
+      // Secretaries can only see office workers
       if (isSecretary) {
         query = query.eq('worker_type', 'office');
       }
+      // For supervisors, we'll fetch all workers and filter in JavaScript
 
       const { data: workersData, error: workersError } = await query.order('name');
       if (workersError) throw workersError;
@@ -44,11 +45,25 @@ export default function AttendancePage() {
         .select('id, site_name');
       if (sitesError) throw sitesError;
 
-      // Join sites data (only permanent site, temporary is in attendance)
-      return (workersData || []).map((worker: any) => ({
+      // Join sites data (only allocated site, current site is in attendance)
+      let workersWithSites = (workersData || []).map((worker: any) => ({
         ...worker,
-        permanent_site: sitesData?.find((s: any) => s.id === worker.permanent_site_id),
+        allocated_site: sitesData?.find((s: any) => s.id === worker.allocated_site_id),
       }));
+
+      // For supervisors, filter workers:
+      // - Helpers: only show if allocated to supervisor's site
+      // - Other portfolios: show all
+      if (isSupervisor && userSiteId) {
+        workersWithSites = workersWithSites.filter((worker: any) => {
+          const isHelpers = worker.portfolio_id === 'f3a8db42-9fc5-4374-b760-17bf53d5685d';
+          // If helpers, only show if allocated to supervisor's site
+          // If not helpers, show all
+          return !isHelpers || worker.allocated_site_id === userSiteId;
+        });
+      }
+
+      return workersWithSites;
     },
   });
 
@@ -96,21 +111,20 @@ export default function AttendancePage() {
     // For Present status, determine the site to use
     let chosenSiteId: string | null = null;
     if (status === 'Present') {
-      // Check if portfolio is "helpers"
-      const isHelpers = worker.worker_type === 'grounds' && 
-        worker.portfolios?.portfolio_name?.toLowerCase() === 'helpers';
+      // Check if portfolio is "helpers" by portfolio_id
+      const isHelpers = worker.portfolio_id === 'f3a8db42-9fc5-4374-b760-17bf53d5685d';
 
       if (isHelpers) {
-        // For helpers, use permanent site
-        chosenSiteId = worker.permanent_site_id;
+        // For helpers, use allocated site (they cannot be moved)
+        chosenSiteId = worker.allocated_site_id;
       } else {
-        // For others, use selected temporary site from dropdown
+        // For others, use selected current site from dropdown
         chosenSiteId = selectedSiteByWorker[workerId];
         
         if (!chosenSiteId) {
           toast({
             title: "Site required",
-            description: `Select a temporary site for ${worker.name} before marking Present`,
+            description: `Select a current site for ${worker.name} before marking Present`,
             variant: "destructive",
           });
           return;
@@ -120,7 +134,7 @@ export default function AttendancePage() {
       if (!chosenSiteId) {
         toast({
           title: "Site required",
-          description: `${worker.name} must have a permanent site assigned`,
+          description: `${worker.name} must have an allocated site assigned`,
           variant: "destructive",
         });
         return;
@@ -266,26 +280,25 @@ export default function AttendancePage() {
                         <p className="text-xs text-muted-foreground mt-1">Already marked for this date</p>
                       )}
                     </div>
-                    {/* Site selectors - check if portfolio is "helpers" */}
+                    {/* Site selectors - check if portfolio is "helpers" by portfolio_id */}
                     {!alreadyMarked && (() => {
-                      const isHelpers = worker.worker_type === 'grounds' && 
-                        worker.portfolios?.portfolio_name?.toLowerCase() === 'helpers';
+                      const isHelpers = worker.portfolio_id === 'f3a8db42-9fc5-4374-b760-17bf53d5685d';
 
                       return (
                         <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[200px]">
-                          {/* Permanent Site - always shown, read-only */}
-                          {worker.permanent_site && (
+                          {/* Allocated Site - always shown, read-only */}
+                          {worker.allocated_site && (
                             <div>
-                              <Label className="text-xs text-muted-foreground mb-1 block">Permanent Site</Label>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Allocated Site</Label>
                               <div className="px-3 py-2 border rounded-md bg-muted/50 text-sm">
-                                {worker.permanent_site.site_name}
+                                {worker.allocated_site.site_name}
                               </div>
                             </div>
                           )}
-                          {/* Temporary Site - dropdown, only show if NOT helpers */}
+                          {/* Current Site - dropdown, only show if NOT helpers */}
                           {!isHelpers && (
                             <div>
-                              <Label className="text-xs text-muted-foreground mb-1 block">Temporary Site</Label>
+                              <Label className="text-xs text-muted-foreground mb-1 block">Current Site</Label>
                               <Select
                                 value={selectedSiteByWorker[worker.id] || ''}
                                 onValueChange={(val) =>
@@ -293,7 +306,7 @@ export default function AttendancePage() {
                                 }
                               >
                                 <SelectTrigger className="w-full" data-testid={`select-site-${worker.id}`}>
-                                  <SelectValue placeholder="Select temporary site" />
+                                  <SelectValue placeholder="Select current site" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {(sites || []).map((site: any) => (
