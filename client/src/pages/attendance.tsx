@@ -26,6 +26,7 @@ export default function AttendancePage() {
   const [isSearchingCrossSite, setIsSearchingCrossSite] = useState(false);
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{ workerId: string; status: string; fromCrossSite: boolean } | null>(null);
+  const [isConfirmed, setIsConfirmed] = useState(false);
 
   const isSupervisor = userRole === 'supervisor';
   const isSecretary = userRole === 'secretary';
@@ -60,17 +61,20 @@ export default function AttendancePage() {
     queryFn: async () => {
       let query = supabase
         .from('attendance')
-        .select('*, workers(name), sites(site_name)')
+        .select('*')
         .eq('date', selectedDate);
 
-      // Supervisors can see attendance records
-      // Only secretaries are filtered to office workers
-      if (isSecretary) {
-        query = query.eq('worker_type', 'office');
-      }
-
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error('Attendance fetch error:', error);
+        throw error;
+      }
+      
+      // Filter on client side for secretaries
+      if (isSecretary && data) {
+        return (data as any[]).filter(record => record.worker_type === 'office');
+      }
+      
       return data as any[];
     },
     // Auto-refresh attendance records
@@ -78,51 +82,6 @@ export default function AttendancePage() {
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
-
-  // Immediately submit attendance for a single worker (records current timestamp on insert)
-  async function markAttendance(workerId: string, status: string) {
-    const worker = workers?.find((w) => w.id === workerId);
-    if (!worker) return;
-
-    // For Present status, determine the site to use
-    let chosenSiteId: string | null = null;
-    if (status === 'Present') {
-      // Check if portfolio is "helpers" by portfolio_id
-      const isHelpers = worker.portfolio_id === 'f3a8db42-9fc5-4374-b760-17bf53d5685d';
-
-      if (isHelpers) {
-        // For helpers, use allocated site (they cannot be moved)
-        chosenSiteId = worker.allocated_site_id;
-      } else {
-        // For others, use selected current site from dropdown
-        chosenSiteId = selectedSiteByWorker[workerId];
-        
-        if (!chosenSiteId) {
-          toast({
-            title: "Site required",
-            description: `Select a current site for ${worker.name} before marking Present`,
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-      
-      if (!chosenSiteId) {
-        toast({
-          title: "No results",
-          description: "No workers found with that name from other sites",
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Search failed",
-        description: error.message || "Unable to search workers. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSearchingCrossSite(false);
-    }
-  };
 
   // Immediately submit attendance for a single worker
   async function markAttendance(workerId: string, status: string, fromCrossSite: boolean = false) {
@@ -161,6 +120,15 @@ export default function AttendancePage() {
         description: `${worker.name} marked ${status} on ${format(new Date(selectedDate), 'MMM dd')}`,
       });
 
+      // Show confirmed state
+      setIsConfirmed(true);
+
+      // Close confirmation dialog after a short delay
+      setTimeout(() => {
+        setConfirmDialog(null);
+        setIsConfirmed(false);
+      }, 1500);
+
       // Close cross-site dialog and clear search if applicable
       if (fromCrossSite) {
         setOpenCrossSiteDialog(false);
@@ -178,6 +146,48 @@ export default function AttendancePage() {
       });
     } finally {
       setIsMarkingAttendance(false);
+    }
+  }
+
+  // Search for workers from other sites
+  async function searchCrossSiteWorker() {
+    if (!crossSiteQuery.trim()) {
+      toast({
+        title: "Enter a name",
+        description: "Please enter a worker name to search",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSearchingCrossSite(true);
+    try {
+      const { data, error } = await supabase
+        .from('workers')
+        .select('*, sites(site_name, id)')
+        .ilike('name', `%${crossSiteQuery}%`)
+        .neq('site_id', userSiteId); // Exclude workers from user's own site
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        toast({
+          title: "No results",
+          description: "No workers found with that name from other sites",
+        });
+        setCrossSiteResults([]);
+        return;
+      }
+
+      setCrossSiteResults(data as any[]);
+    } catch (error: any) {
+      toast({
+        title: "Search failed",
+        description: error.message || "Unable to search workers. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearchingCrossSite(false);
     }
   }
 
@@ -453,46 +463,59 @@ export default function AttendancePage() {
       </Card>
 
       {/* Confirmation Dialog */}
-      <Dialog open={!!confirmDialog} onOpenChange={(open) => !open && setConfirmDialog(null)}>
-        <DialogContent className="max-w-sm border-2 border-blue-300 shadow-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-blue-700">✓ Confirm Attendance</DialogTitle>
-            <DialogDescription className="text-slate-600 font-semibold">
-              Please confirm this attendance marking
-            </DialogDescription>
-          </DialogHeader>
-          {confirmDialog && (
-            <div className="space-y-4">
-              <Alert className="border-2 border-yellow-400 bg-yellow-50">
-                <AlertCircle className="h-4 w-4 text-yellow-600" />
-                <AlertDescription className="text-slate-900 font-semibold ml-2">
-                  Mark {confirmDialog.status.toLowerCase()} for {format(new Date(selectedDate), 'MMMM dd, yyyy')}?
-                </AlertDescription>
-              </Alert>
-              <p className="text-sm text-slate-700 font-semibold">
-                ⚠️ This action cannot be undone. Once marked, the attendance record is locked.
-              </p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDialog(null)} disabled={isMarkingAttendance} className="border-2 border-slate-300">
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (confirmDialog) {
-                  markAttendance(confirmDialog.workerId, confirmDialog.status, confirmDialog.fromCrossSite);
-                }
-              }}
-              disabled={isMarkingAttendance}
-              className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg font-semibold"
-            >
-              {isMarkingAttendance && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {confirmDialog && (
+        <Dialog open={!!confirmDialog} onOpenChange={(open) => !open && !isConfirmed && setConfirmDialog(null)}>
+          <DialogContent className={`max-w-sm border-2 border-blue-300 shadow-2xl transition-opacity duration-700 ${isConfirmed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <DialogHeader>
+              <DialogTitle className={`text-2xl font-bold ${isConfirmed ? 'text-green-700' : 'text-blue-700'}`}>
+                {isConfirmed ? '✓ Confirmed' : '✓ Confirm Attendance'}
+              </DialogTitle>
+              <DialogDescription className="text-slate-600 font-semibold">
+                {isConfirmed ? 'Attendance has been recorded' : 'Please confirm this attendance marking'}
+              </DialogDescription>
+            </DialogHeader>
+            {!isConfirmed && confirmDialog && (
+              <div className="space-y-4">
+                <Alert className="border-2 border-yellow-400 bg-yellow-50">
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                  <AlertDescription className="text-slate-900 font-semibold ml-2">
+                    Mark {confirmDialog.status.toLowerCase()} for {format(new Date(selectedDate), 'MMMM dd, yyyy')}?
+                  </AlertDescription>
+                </Alert>
+                <p className="text-sm text-slate-700 font-semibold">
+                  ⚠️ This action cannot be undone. Once marked, the attendance record is locked.
+                </p>
+              </div>
+            )}
+            {isConfirmed && (
+              <div className="flex justify-center py-8">
+                <CheckCircle2 className="h-16 w-16 text-green-500 animate-bounce" />
+              </div>
+            )}
+            <DialogFooter>
+              {!isConfirmed && (
+                <>
+                  <Button variant="outline" onClick={() => setConfirmDialog(null)} disabled={isMarkingAttendance} className="border-2 border-slate-300">
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (confirmDialog) {
+                        markAttendance(confirmDialog.workerId, confirmDialog.status, confirmDialog.fromCrossSite);
+                      }
+                    }}
+                    disabled={isMarkingAttendance}
+                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg font-semibold"
+                  >
+                    {isMarkingAttendance && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    Confirm
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 } 
