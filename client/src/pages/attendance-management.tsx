@@ -51,11 +51,12 @@ export default function AttendanceManagementPage() {
     queryFn: async () => {
       let query = supabase
         .from('attendance')
-        .select('*, workers(name, worker_type), sites(site_name)')
+        .select('*, workers(name, worker_type, sites(site_name)), sites(site_name)')
         .eq('date', selectedDate);
 
       if (filterSite !== 'all') {
-        query = query.eq('site_id', filterSite);
+        // Filter by the worker's site
+        query = query.eq('workers.site_id', filterSite);
       }
 
       if (filterType !== 'all') {
@@ -261,7 +262,7 @@ export default function AttendanceManagementPage() {
                         data-testid={`attendance-record-${record.id}`}
                       >
                         <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{record.workers?.name}</td>
-                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{record.sites?.site_name}</td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{record.workers?.sites?.site_name}</td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4">
                           <Badge variant="outline" className="text-xs">
                             {record.workers?.worker_type}

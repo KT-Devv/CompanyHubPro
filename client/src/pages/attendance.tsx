@@ -8,18 +8,24 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, CheckCircle2, XCircle, Coffee, Search } from 'lucide-react';
+import { Calendar, CheckCircle2, XCircle, Coffee, Search, Plus, AlertCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Worker, Attendance } from '@shared/schema';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function AttendancePage() {
   const { userRole, userId, userSiteId } = useAuth();
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSiteByWorker, setSelectedSiteByWorker] = useState<Record<string, string>>({});
+  const [openCrossSiteDialog, setOpenCrossSiteDialog] = useState(false);
+  const [crossSiteQuery, setCrossSiteQuery] = useState('');
+  const [crossSiteResults, setCrossSiteResults] = useState<any[]>([]);
+  const [isSearchingCrossSite, setIsSearchingCrossSite] = useState(false);
+  const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{ workerId: string; status: string; fromCrossSite: boolean } | null>(null);
 
   const isSupervisor = userRole === 'supervisor';
   const isSecretary = userRole === 'secretary';
@@ -28,55 +34,25 @@ export default function AttendancePage() {
   const { data: workers, isLoading: loadingWorkers } = useQuery({
     queryKey: ['/api/workers', userRole, userSiteId],
     queryFn: async () => {
-      let query = supabase.from('workers').select('*, portfolios(portfolio_name, id), positions(position_name, id)');
+      let query = supabase.from('workers').select('*, portfolios(portfolio_name, id), positions(position_name, id), sites(site_name, id)');
 
       // Secretaries can only see office workers
       if (isSecretary) {
         query = query.eq('worker_type', 'office');
       }
-      // For supervisors, we'll fetch all workers and filter in JavaScript
 
       const { data: workersData, error: workersError } = await query.order('name');
       if (workersError) throw workersError;
 
-      // Fetch sites separately and join
-      const { data: sitesData, error: sitesError } = await supabase
-        .from('sites')
-        .select('id, site_name');
-      if (sitesError) throw sitesError;
-
-      // Join sites data (only allocated site, current site is in attendance)
-      let workersWithSites = (workersData || []).map((worker: any) => ({
-        ...worker,
-        allocated_site: sitesData?.find((s: any) => s.id === worker.allocated_site_id),
-      }));
-
-      // For supervisors, filter workers:
-      // - Helpers: only show if allocated to supervisor's site
-      // - Other portfolios: show all
+      // For supervisors, filter workers - only show those assigned to their site
+      let filteredWorkers = (workersData || []);
       if (isSupervisor && userSiteId) {
-        workersWithSites = workersWithSites.filter((worker: any) => {
-          const isHelpers = worker.portfolio_id === 'f3a8db42-9fc5-4374-b760-17bf53d5685d';
-          // If helpers, only show if allocated to supervisor's site
-          // If not helpers, show all
-          return !isHelpers || worker.allocated_site_id === userSiteId;
-        });
+        filteredWorkers = filteredWorkers.filter((w: any) => w.site_id === userSiteId);
       }
 
-      return workersWithSites;
+      return filteredWorkers;
     },
   });
-
-  // Fetch sites for site selection (used for both office and grounds workers when Present)
-  const { data: sites } = useQuery({
-    queryKey: ['/api/sites'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('sites').select('*').order('site_name');
-      if (error) throw error;
-      return data as any[];
-    },
-  });
-
 
   // Fetch attendance records for selected date (role-scoped)
   const { data: attendanceRecords, refetch: refetchAttendance } = useQuery({
@@ -87,7 +63,7 @@ export default function AttendancePage() {
         .select('*, workers(name), sites(site_name)')
         .eq('date', selectedDate);
 
-      // Supervisors can see all attendance records
+      // Supervisors can see attendance records
       // Only secretaries are filtered to office workers
       if (isSecretary) {
         query = query.eq('worker_type', 'office');
@@ -105,7 +81,7 @@ export default function AttendancePage() {
 
   // Immediately submit attendance for a single worker (records current timestamp on insert)
   async function markAttendance(workerId: string, status: string) {
-    const worker = workers?.find((w: any) => w.id === workerId);
+    const worker = workers?.find((w) => w.id === workerId);
     if (!worker) return;
 
     // For Present status, determine the site to use
@@ -133,36 +109,64 @@ export default function AttendancePage() {
       
       if (!chosenSiteId) {
         toast({
-          title: "Site required",
-          description: `${worker.name} must have an allocated site assigned`,
-          variant: "destructive",
+          title: "No results",
+          description: "No workers found with that name from other sites",
         });
-        return;
       }
+    } catch (error: any) {
+      toast({
+        title: "Search failed",
+        description: error.message || "Unable to search workers. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearchingCrossSite(false);
+    }
+  };
+
+  // Immediately submit attendance for a single worker
+  async function markAttendance(workerId: string, status: string, fromCrossSite: boolean = false) {
+    const worker = fromCrossSite 
+      ? crossSiteResults.find((w: any) => w.id === workerId)
+      : workers?.find((w: any) => w.id === workerId);
+    
+    if (!worker) {
+      toast({
+        title: "Worker not found",
+        description: "Unable to locate worker information",
+        variant: "destructive",
+      });
+      return;
     }
 
+    setIsMarkingAttendance(true);
     try {
       const { error } = await supabase.from('attendance').insert({
         worker_id: workerId,
-        site_id: chosenSiteId,
         date: selectedDate,
         status,
         marked_by: userId,
         worker_type: worker.worker_type,
       });
-      if (error) throw error;
+      if (error) {
+        // Handle specific error cases
+        if (error.message.includes('duplicate') || error.code === '23505') {
+          throw new Error(`${worker.name} has already been marked for ${format(new Date(selectedDate), 'MMMM dd, yyyy')}`);
+        }
+        throw error;
+      }
 
       toast({
         title: "Attendance recorded",
-        description: `${worker.name} marked ${status}`,
+        description: `${worker.name} marked ${status} on ${format(new Date(selectedDate), 'MMM dd')}`,
       });
 
-      // Clear per-worker site selection only after successful submit
-      setSelectedSiteByWorker((prev) => {
-        const next = { ...prev };
-        delete next[workerId];
-        return next;
-      });
+      // Close cross-site dialog and clear search if applicable
+      if (fromCrossSite) {
+        setOpenCrossSiteDialog(false);
+        setCrossSiteQuery('');
+        setCrossSiteResults([]);
+      }
 
       refetchAttendance();
     } catch (error: any) {
@@ -172,6 +176,8 @@ export default function AttendancePage() {
         description: error.message || "Please try again",
         variant: "destructive",
       });
+    } finally {
+      setIsMarkingAttendance(false);
     }
   }
 
@@ -195,45 +201,162 @@ export default function AttendancePage() {
   }
 
   return (
-    <div className="w-full h-full flex flex-col gap-6 p-4 sm:p-6 lg:p-8 bg-background animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="animate-in fade-in slide-in-from-left-4 duration-700">
-          <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Mark Attendance</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            {isSupervisor && 'Mark attendance for all workers - select site when Present'}
-            {isSecretary && 'Mark attendance for office staff'}
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-800">Mark Attendance</h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-2">
+            {isSupervisor ? '📍 Mark attendance for workers at your site' : '📋 Mark attendance for office staff'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hidden sm:block" />
+        <div className="flex flex-col sm:flex-row items-center gap-2">
+          <Calendar className="h-5 w-5 text-slate-500 hidden sm:block" />
           <Input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto border border-gray-200 focus:border-blue-300 focus:ring-blue-300"
             data-testid="input-date"
           />
+          {isSupervisor && (
+            <Dialog open={openCrossSiteDialog} onOpenChange={setOpenCrossSiteDialog}>
+              <Button
+                size="sm"
+                className="border border-blue-300 text-blue-700 bg-white hover:bg-blue-50 shadow-sm transition-all"
+                onClick={() => setOpenCrossSiteDialog(true)}
+                data-testid="button-cross-site"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Mark Other Worker
+              </Button>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Mark Attendance - Other Sites</DialogTitle>
+                  <DialogDescription>
+                    Search for a worker from another site by name
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="crossSiteSearch">Search by Name</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="crossSiteSearch"
+                        placeholder="Worker name"
+                        value={crossSiteQuery}
+                        onChange={(e) => setCrossSiteQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && searchCrossSiteWorker()}
+                        disabled={isSearchingCrossSite}
+                        data-testid="input-cross-site-search"
+                      />
+                      <Button
+                        onClick={searchCrossSiteWorker}
+                        disabled={isSearchingCrossSite}
+                        data-testid="button-search-cross-site"
+                      >
+                        {isSearchingCrossSite ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Search className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {crossSiteResults.length > 0 && (
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {crossSiteResults.map((worker) => {
+                        const alreadyMarked = attendanceRecords?.some((r) => r.worker_id === worker.id);
+                        return (
+                          <div
+                            key={worker.id}
+                            className={`p-4 rounded-lg border transition-all ${
+                              alreadyMarked ? 'bg-slate-100 border-slate-300 opacity-60' : 'bg-white border-gray-100 hover:shadow-md'
+                            }`}
+                            data-testid={`cross-site-worker-${worker.id}`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div>
+                                <p className="font-bold text-sm text-slate-900">{worker.name}</p>
+                                <p className="text-xs text-slate-600 mt-1">
+                                  📱 {worker.phone_number} • 📍 {worker.sites?.site_name}
+                                </p>
+                                {alreadyMarked && (
+                                  <p className="text-xs text-slate-600 mt-2 font-semibold">✓ Already marked for this date</p>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50 font-semibold"
+                                  onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Present', fromCrossSite: true })}
+                                  disabled={alreadyMarked || isMarkingAttendance}
+                                  data-testid={`button-cross-present-${worker.id}`}
+                                >
+                                  {isMarkingAttendance ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                                  ) : (
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  )}
+                                  Present
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="border border-red-300 text-red-700 bg-white hover:bg-red-50 font-semibold"
+                                  onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Absent', fromCrossSite: true })}
+                                  disabled={alreadyMarked || isMarkingAttendance}
+                                  data-testid={`button-cross-absent-${worker.id}`}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Absent
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="border border-amber-300 text-amber-700 bg-white hover:bg-amber-50 font-semibold"
+                                  onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Leave', fromCrossSite: true })}
+                                  disabled={alreadyMarked || isMarkingAttendance}
+                                  data-testid={`button-cross-leave-${worker.id}`}
+                                >
+                                  <Coffee className="h-4 w-4 mr-1" />
+                                  Leave
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setOpenCrossSiteDialog(false)}>
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
-      <Card className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-150">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 space-y-0 pb-4">
+      <Card className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-150 border border-gray-200 shadow-sm bg-white">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 space-y-0 pb-4 bg-white border-b border-gray-100">
           <div>
-            <CardTitle className="text-lg sm:text-xl">Mark Attendance</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Click a status to record instantly</CardDescription>
+            <CardTitle className="text-xl sm:text-2xl font-semibold text-slate-800">Mark Attendance</CardTitle>
+            <CardDescription className="text-sm text-slate-600 mt-1">✓ Click a status to record instantly</CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
           {/* Search Filter */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 w-full sm:min-w-[200px]">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
                   placeholder="Search workers..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 border border-gray-200 focus:border-blue-300 focus:ring-blue-300"
                   data-testid="input-search-workers"
                 />
               </div>
@@ -253,104 +376,69 @@ export default function AttendancePage() {
                 return (
                   <div
                     key={worker.id}
-                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg border transition-all duration-200 hover:shadow-sm hover:border-card-border ${
-                      alreadyMarked ? 'bg-muted/40 opacity-60' : 'bg-card hover:bg-muted/20'
+                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-md border transition-all duration-200 hover:shadow-sm ${
+                      alreadyMarked ? 'bg-muted/50 opacity-60' : 'bg-card hover:bg-muted/30'
                     } animate-in fade-in slide-in-from-left-4`}
                     style={{ animationDelay: `${filteredWorkers.indexOf(worker) * 50}ms` }}
                     data-testid={`worker-row-${worker.id}`}
                   >
                     <div className="flex-1 w-full sm:min-w-[200px]">
-                      <p className="font-medium text-sm sm:text-base">{worker.name}</p>
-                      <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <Badge variant="secondary" className="text-xs">
-                          {worker.worker_type}
+                      <p className="font-semibold text-sm sm:text-base text-slate-900">{worker.name}</p>
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <Badge variant="secondary" className="text-xs bg-gray-100 text-slate-700 border border-gray-200">
+                          {worker.worker_type === 'office' ? '🏢' : '🔧'} {worker.worker_type}
                         </Badge>
                         {worker.worker_type === 'grounds' && worker.portfolios && (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-slate-700 font-semibold">
                             {worker.portfolios.portfolio_name}
                           </span>
                         )}
                         {worker.worker_type === 'office' && worker.positions && (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-slate-700 font-semibold">
                             {worker.positions.position_name}
+                          </span>
+                        )}
+                        {worker.sites && (
+                          <span className="text-xs text-slate-600 font-medium">
+                            📍 {worker.sites.site_name}
                           </span>
                         )}
                       </div>
                       {alreadyMarked && (
-                        <p className="text-xs text-muted-foreground mt-1">Already marked for this date</p>
+                        <p className="text-xs text-slate-600 mt-2 font-semibold">✓ Already marked for this date</p>
                       )}
                     </div>
-                    {/* Site selectors - check if portfolio is "helpers" by portfolio_id */}
-                    {!alreadyMarked && (() => {
-                      const isHelpers = worker.portfolio_id === 'f3a8db42-9fc5-4374-b760-17bf53d5685d';
-
-                      return (
-                        <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[200px]">
-                          {/* Allocated Site - always shown, read-only */}
-                          {worker.allocated_site && (
-                            <div>
-                              <Label className="text-xs text-muted-foreground mb-1 block">Allocated Site</Label>
-                              <div className="px-3 py-2 border rounded-md bg-muted/50 text-sm">
-                                {worker.allocated_site.site_name}
-                              </div>
-                            </div>
-                          )}
-                          {/* Current Site - dropdown, only show if NOT helpers */}
-                          {!isHelpers && (
-                            <div>
-                              <Label className="text-xs text-muted-foreground mb-1 block">Current Site</Label>
-                              <Select
-                                value={selectedSiteByWorker[worker.id] || ''}
-                                onValueChange={(val) =>
-                                  setSelectedSiteByWorker((prev) => ({ ...prev, [worker.id]: val }))
-                                }
-                              >
-                                <SelectTrigger className="w-full" data-testid={`select-site-${worker.id}`}>
-                                  <SelectValue placeholder="Select current site" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {(sites || []).map((site: any) => (
-                                    <SelectItem key={site.id} value={site.id}>
-                                      {site.site_name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                      <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                       <Button
                         size="sm"
-                        variant={'outline'}
-                        onClick={() => markAttendance(worker.id, 'Present')}
-                        disabled={alreadyMarked}
+                        className="border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
+                        onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Present', fromCrossSite: false })}
+                        disabled={alreadyMarked || isMarkingAttendance}
                         data-testid={`button-present-${worker.id}`}
-                        className="flex-1 sm:flex-none sm:min-w-[80px]"
                       >
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
+                        {isMarkingAttendance ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                        )}
                         Present
                       </Button>
                       <Button
                         size="sm"
-                        variant={'outline'}
-                        onClick={() => markAttendance(worker.id, 'Absent')}
-                        disabled={alreadyMarked}
+                        className="border border-red-300 text-red-700 bg-white hover:bg-red-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
+                        onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Absent', fromCrossSite: false })}
+                        disabled={alreadyMarked || isMarkingAttendance}
                         data-testid={`button-absent-${worker.id}`}
-                        className="flex-1 sm:flex-none sm:min-w-[80px]"
                       >
                         <XCircle className="h-4 w-4 mr-1" />
                         Absent
                       </Button>
                       <Button
                         size="sm"
-                        variant={'outline'}
-                        onClick={() => markAttendance(worker.id, 'Leave')}
-                        disabled={alreadyMarked}
+                        className="border border-amber-300 text-amber-700 bg-white hover:bg-amber-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
+                        onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Leave', fromCrossSite: false })}
+                        disabled={alreadyMarked || isMarkingAttendance}
                         data-testid={`button-leave-${worker.id}`}
-                        className="flex-1 sm:flex-none sm:min-w-[80px]"
                       >
                         <Coffee className="h-4 w-4 mr-1" />
                         Leave
@@ -363,6 +451,48 @@ export default function AttendancePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={!!confirmDialog} onOpenChange={(open) => !open && setConfirmDialog(null)}>
+        <DialogContent className="max-w-sm border-2 border-blue-300 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-blue-700">✓ Confirm Attendance</DialogTitle>
+            <DialogDescription className="text-slate-600 font-semibold">
+              Please confirm this attendance marking
+            </DialogDescription>
+          </DialogHeader>
+          {confirmDialog && (
+            <div className="space-y-4">
+              <Alert className="border-2 border-yellow-400 bg-yellow-50">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertDescription className="text-slate-900 font-semibold ml-2">
+                  Mark {confirmDialog.status.toLowerCase()} for {format(new Date(selectedDate), 'MMMM dd, yyyy')}?
+                </AlertDescription>
+              </Alert>
+              <p className="text-sm text-slate-700 font-semibold">
+                ⚠️ This action cannot be undone. Once marked, the attendance record is locked.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialog(null)} disabled={isMarkingAttendance} className="border-2 border-slate-300">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (confirmDialog) {
+                  markAttendance(confirmDialog.workerId, confirmDialog.status, confirmDialog.fromCrossSite);
+                }
+              }}
+              disabled={isMarkingAttendance}
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg font-semibold"
+            >
+              {isMarkingAttendance && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-}
+} 
