@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { DollarSign, Search, Calendar, Calculator, Plus, X } from 'lucide-react';
+import { DollarSign, Search, Calendar, Calculator, Plus, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isSameMonth, isSameYear, getDaysInMonth } from 'date-fns';
 import type { Worker } from '@shared/schema';
 
@@ -19,6 +19,7 @@ interface SalaryCalculation {
   workerId: string;
   workerName: string;
   workerType: string;
+  siteName: string;
   rate: number;
   daysPresent: number;
   baseSalary: number;
@@ -41,6 +42,8 @@ export default function SalariesManagementPage() {
   const [showAdvanceDialog, setShowAdvanceDialog] = useState(false);
   const [showLoanDialog, setShowLoanDialog] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<string | null>(null);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Parse selected month
   const selectedDate = new Date(selectedMonth + '-01');
@@ -56,7 +59,7 @@ export default function SalariesManagementPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('workers')
-        .select('*, portfolios(portfolio_name, rate), positions(position_name, rate)')
+        .select('*, portfolios(portfolio_name, rate), positions(position_name, rate), sites(site_name)')
         .order('name');
       if (error) throw error;
       return data as any[];
@@ -148,6 +151,7 @@ export default function SalariesManagementPage() {
           workerId: worker.id,
           workerName: worker.name,
           workerType: worker.worker_type,
+          siteName: worker.sites?.site_name || 'N/A',
           rate: rate,
           daysPresent: daysPresent,
           baseSalary: baseSalary,
@@ -172,6 +176,7 @@ export default function SalariesManagementPage() {
           workerId: worker.id,
           workerName: worker.name,
           workerType: worker.worker_type,
+          siteName: worker.sites?.site_name || 'N/A',
           rate: baseSalary,
           daysPresent: 0,
           baseSalary: baseSalary,
@@ -196,15 +201,34 @@ export default function SalariesManagementPage() {
       );
     }
 
-    // Site filtering removed - workers don't have site_id anymore
-    // Sites are only tracked in attendance records
-
     if (filterType !== 'all') {
       filtered = filtered.filter((calc) => calc.workerType === filterType);
     }
 
+    // Apply sorting
+    if (sortColumn) {
+      filtered = [...filtered].sort((a, b) => {
+        let aVal: any = a[sortColumn as keyof SalaryCalculation];
+        let bVal: any = b[sortColumn as keyof SalaryCalculation];
+
+        // Handle string comparisons
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          aVal = aVal.toLowerCase();
+          bVal = bVal.toLowerCase();
+          return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+
+        // Handle number comparisons
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+
+        return 0;
+      });
+    }
+
     return filtered;
-  }, [salaryCalculations, searchQuery, filterType, workers]);
+  }, [salaryCalculations, searchQuery, filterType, sortColumn, sortDirection]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -267,10 +291,10 @@ export default function SalariesManagementPage() {
   });
 
   const handleExport = () => {
-    const headers = ['Worker Name', 'Type', 'Rate/Monthly Salary', 'Days Present', 'Base Salary', 'Advances', 'Loans', 'Final Salary'];
+    const headers = ['Worker Name', 'Site', 'Rate/Monthly Salary', 'Days Present', 'Base Salary', 'Advances', 'Loans', 'Final Salary'];
     const rows = filteredCalculations.map((calc) => [
       calc.workerName,
-      calc.workerType,
+      calc.siteName,
       calc.rate.toString(),
       calc.isFixed ? 'Fixed' : calc.daysPresent.toString(),
       calc.baseSalary.toString(),
@@ -308,6 +332,35 @@ export default function SalariesManagementPage() {
     }
     return options;
   }, [now]);
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortHeader = ({ column, label }: { column: string; label: string }) => (
+    <th 
+      className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground cursor-pointer hover:bg-muted/30"
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center gap-2">
+        {label}
+        {sortColumn === column ? (
+          sortDirection === 'asc' ? (
+            <ArrowUp className="h-4 w-4" />
+          ) : (
+            <ArrowDown className="h-4 w-4" />
+          )
+        ) : (
+          <ArrowUpDown className="h-4 w-4 opacity-30" />
+        )}
+      </div>
+    </th>
+  );
 
   return (
     <div className="w-full h-full flex flex-col gap-6 p-4 sm:p-6 lg:p-8 bg-background animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -482,34 +535,18 @@ export default function SalariesManagementPage() {
                 <table className="w-full min-w-[800px]">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Worker Name
-                      </th>
-                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Type
-                      </th>
-                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Rate/Monthly (₵)
-                      </th>
-                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Days
-                      </th>
-                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Base Salary (₵)
-                      </th>
+                      <SortHeader column="workerName" label="Worker Name" />
+                      <SortHeader column="siteName" label="Site" />
+                      <SortHeader column="rate" label="Rate/Monthly (₵)" />
+                      <SortHeader column="daysPresent" label="Days" />
+                      <SortHeader column="baseSalary" label="Base Salary (₵)" />
                       {!isCurrentMonth && (
                         <>
-                          <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Advances (₵)
-                          </th>
-                          <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Loans (₵)
-                          </th>
+                          <SortHeader column="advances" label="Advances (₵)" />
+                          <SortHeader column="loans" label="Loans (₵)" />
                         </>
                       )}
-                      <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {isCurrentMonth ? 'Salary (₵)' : 'Final Salary (₵)'}
-                      </th>
+                      <SortHeader column="finalSalary" label={isCurrentMonth ? 'Salary (₵)' : 'Final Salary (₵)'} />
                     </tr>
                   </thead>
                   <tbody>
@@ -520,10 +557,8 @@ export default function SalariesManagementPage() {
                         data-testid={`salary-row-${calc.workerId}`}
                       >
                         <td className="py-2 sm:py-3 px-2 sm:px-4 font-medium text-sm">{calc.workerName}</td>
-                        <td className="py-2 sm:py-3 px-2 sm:px-4">
-                          <Badge variant="outline" className="text-xs">
-                            {calc.workerType}
-                          </Badge>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">
+                          {calc.siteName}
                         </td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">₵{calc.rate.toLocaleString()}</td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">

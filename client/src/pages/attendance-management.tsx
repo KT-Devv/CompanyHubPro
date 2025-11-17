@@ -49,25 +49,12 @@ export default function AttendanceManagementPage() {
   const { data: attendanceRecords, isLoading: loadingAttendance } = useQuery({
     queryKey: ['/api/attendance-management', selectedDate, filterSite, filterType, filterStatus],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from('attendance')
-        .select('*, workers(name, worker_type, sites(site_name)), sites(site_name)')
-        .eq('date', selectedDate);
+        .select('*')
+        .eq('date', selectedDate)
+        .order('timestamp', { ascending: false });
 
-      if (filterSite !== 'all') {
-        // Filter by the worker's site
-        query = query.eq('workers.site_id', filterSite);
-      }
-
-      if (filterType !== 'all') {
-        query = query.eq('worker_type', filterType);
-      }
-
-      if (filterStatus !== 'all') {
-        query = query.eq('status', filterStatus);
-      }
-
-      const { data, error } = await query.order('timestamp', { ascending: false });
       if (error) throw error;
       return data as any[];
     },
@@ -77,11 +64,27 @@ export default function AttendanceManagementPage() {
     refetchOnWindowFocus: true,
   });
 
-  // Filter by search query
-  const filteredRecords = attendanceRecords?.filter((record) => {
-    const workerName = record.workers?.name?.toLowerCase() || '';
-    return workerName.includes(searchQuery.toLowerCase());
+  // Get worker details and enrich attendance records
+  const enrichedRecords = attendanceRecords?.map((record) => {
+    const worker = workers?.find((w: any) => w.id === record.worker_id);
+    const site = sites?.find((s: any) => s.id === worker?.site_id);
+    return {
+      ...record,
+      worker_details: worker,
+      site_details: site,
+    };
   }) || [];
+
+  // Apply filters on enriched records
+  const filteredRecords = enrichedRecords.filter((record) => {
+    const workerName = record.worker_details?.name?.toLowerCase() || '';
+    const matchesSearch = workerName.includes(searchQuery.toLowerCase());
+    const matchesSite = filterSite === 'all' || record.worker_details?.site_id === filterSite;
+    const matchesType = filterType === 'all' || record.worker_type === filterType;
+    const matchesStatus = filterStatus === 'all' || record.status === filterStatus;
+    
+    return matchesSearch && matchesSite && matchesType && matchesStatus;
+  });
 
   // Calculate stats
   const stats = attendanceRecords?.reduce(
@@ -261,11 +264,11 @@ export default function AttendanceManagementPage() {
                         className={idx % 2 === 0 ? 'bg-muted/30' : ''}
                         data-testid={`attendance-record-${record.id}`}
                       >
-                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{record.workers?.name}</td>
-                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{record.workers?.sites?.site_name}</td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{record.worker_details?.name}</td>
+                        <td className="py-2 sm:py-3 px-2 sm:px-4 text-sm">{record.site_details?.site_name}</td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4">
                           <Badge variant="outline" className="text-xs">
-                            {record.workers?.worker_type}
+                            {record.worker_type}
                           </Badge>
                         </td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4">
