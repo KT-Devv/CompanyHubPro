@@ -66,21 +66,11 @@ export default function WorkersManagementPage() {
     queryFn: async () => {
       const { data: workersData, error: workersError } = await supabase
         .from('workers')
-        .select('*, portfolios(portfolio_name, rate), positions(position_name, rate)')
+        .select('*, portfolios(portfolio_name, rate), positions(position_name, rate), sites(site_name, id)')
         .order('name');
       if (workersError) throw workersError;
       
-      // Fetch sites separately and join
-      const { data: sitesData, error: sitesError } = await supabase
-        .from('sites')
-        .select('id, site_name');
-      if (sitesError) throw sitesError;
-      
-      // Join sites data (only allocated site, current site is in attendance)
-      return (workersData || []).map((worker: any) => ({
-        ...worker,
-        allocated_site: sitesData?.find((s: any) => s.id === worker.allocated_site_id),
-      }));
+      return workersData || [];
     },
     staleTime: 30 * 1000, // 30 seconds
     refetchInterval: 30 * 1000, // 30 seconds
@@ -160,8 +150,8 @@ export default function WorkersManagementPage() {
             : (b.positions?.position_name || '').toLowerCase();
           break;
         case 'site':
-          aValue = (a.allocated_site?.site_name || '').toLowerCase();
-          bValue = (b.allocated_site?.site_name || '').toLowerCase();
+          aValue = (a.sites?.site_name || '').toLowerCase();
+          bValue = (b.sites?.site_name || '').toLowerCase();
           break;
         case 'phone':
           aValue = (a.phone_number || '').toLowerCase();
@@ -299,7 +289,7 @@ export default function WorkersManagementPage() {
                         <SortButton column="portfolio">Portfolio/Position</SortButton>
                       </th>
                       <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        <SortButton column="site">Allocated Site</SortButton>
+                        <SortButton column="site">Site</SortButton>
                       </th>
                       <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         <SortButton column="phone">Phone Number</SortButton>
@@ -319,7 +309,7 @@ export default function WorkersManagementPage() {
                           {w.worker_type === 'grounds' ? (w.portfolios?.portfolio_name || '-') : (w.positions?.position_name || '-')}
                         </td>
                         <td className="py-3 px-4 text-sm">
-                          {w.allocated_site?.site_name || '-'}
+                          {w.sites?.site_name || '-'}
                         </td>
                         <td className="py-3 px-4 text-sm">{w.phone_number || '-'}</td>
                         <td className="py-3 px-4">
@@ -422,8 +412,8 @@ function WorkerDetailsView({ worker }: { worker: any }) {
           </p>
         </div>
         <div>
-          <Label className="text-muted-foreground">Allocated Site</Label>
-          <p className="text-sm font-medium mt-1">{worker.allocated_site?.site_name || '-'}</p>
+          <Label className="text-muted-foreground">Site</Label>
+          <p className="text-sm font-medium mt-1">{worker.sites?.site_name || '-'}</p>
         </div>
         <div>
           <Label className="text-muted-foreground">Phone Number</Label>
@@ -479,7 +469,7 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
     worker_type: initial?.worker_type || 'grounds',
     portfolio_id: initial?.portfolio_id || '',
     position_id: initial?.position_id || '',
-    allocated_site_id: initial?.allocated_site_id || '',
+    site_id: initial?.site_id || '',
     phone_number: initial?.phone_number || '',
     national_id: initial?.national_id || '',
     dob: initial?.dob || '',
@@ -510,7 +500,7 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
   const handleAllocatedSiteChange = (siteId: string) => {
     setForm((prev: any) => ({
       ...prev,
-      allocated_site_id: siteId,
+      site_id: siteId,
     }));
   };
 
@@ -521,7 +511,7 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
       worker_type: form.worker_type,
       portfolio_id: form.worker_type === 'grounds' ? (form.portfolio_id || null) : null,
       position_id: form.worker_type === 'office' ? (form.position_id || null) : null,
-      allocated_site_id: form.allocated_site_id || null,
+      site_id: form.site_id || null,
       phone_number: form.phone_number,
       national_id: form.national_id,
       dob: form.dob || null,
@@ -571,10 +561,10 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
           </div>
         )}
         <div>
-          <Label htmlFor="allocatedSite">Allocated Site</Label>
-          <Select value={form.allocated_site_id} onValueChange={handleAllocatedSiteChange}>
+          <Label htmlFor="allocatedSite">Site</Label>
+          <Select value={form.site_id} onValueChange={handleAllocatedSiteChange}>
             <SelectTrigger id="allocatedSite">
-              <SelectValue placeholder="Select allocated site" />
+              <SelectValue placeholder="Select site" />
             </SelectTrigger>
             <SelectContent>
               {sites.map((s: Site) => (
