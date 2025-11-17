@@ -105,7 +105,7 @@ export default function AttendancePage() {
 
   // Immediately submit attendance for a single worker (records current timestamp on insert)
   async function markAttendance(workerId: string, status: string) {
-    const worker = workers?.find((w) => w.id === workerId);
+    const worker = workers?.find((w: any) => w.id === workerId);
     if (!worker) return;
 
     // For Present status, determine the site to use
@@ -176,7 +176,7 @@ export default function AttendancePage() {
   }
 
   // Filter workers
-  const filteredWorkers = workers?.filter((worker) => {
+  const filteredWorkers = workers?.filter((worker: any) => {
     const matchesSearch = worker.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   }) || [];
@@ -195,7 +195,7 @@ export default function AttendancePage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="w-full h-full flex flex-col gap-6 p-4 sm:p-6 lg:p-8 bg-background animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="animate-in fade-in slide-in-from-left-4 duration-700">
           <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Mark Attendance</h1>
@@ -247,14 +247,14 @@ export default function AttendancePage() {
                 No workers found
               </div>
             ) : (
-              filteredWorkers.map((worker) => {
+              filteredWorkers.map((worker: any) => {
                 const alreadyMarked = attendanceRecords?.some((r) => r.worker_id === worker.id);
 
                 return (
                   <div
                     key={worker.id}
-                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-md border transition-all duration-200 hover:shadow-sm ${
-                      alreadyMarked ? 'bg-muted/50 opacity-60' : 'bg-card hover:bg-muted/30'
+                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg border transition-all duration-200 hover:shadow-sm hover:border-card-border ${
+                      alreadyMarked ? 'bg-muted/40 opacity-60' : 'bg-card hover:bg-muted/20'
                     } animate-in fade-in slide-in-from-left-4`}
                     style={{ animationDelay: `${filteredWorkers.indexOf(worker) * 50}ms` }}
                     data-testid={`worker-row-${worker.id}`}

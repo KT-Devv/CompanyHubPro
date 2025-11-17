@@ -93,7 +93,7 @@ export default function AttendanceManagementPage() {
   ) || { present: 0, absent: 0, leave: 0, total: 0 };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="w-full h-full flex flex-col gap-6 p-4 sm:p-6 lg:p-8 bg-background animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="animate-in fade-in slide-in-from-left-4 duration-700">
           <h1 className="text-xl sm:text-2xl font-semibold text-foreground">Attendance Management</h1>
