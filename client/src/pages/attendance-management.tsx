@@ -9,13 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, CheckCircle2, XCircle, Coffee, Search, Download } from 'lucide-react';
+import { Calendar, CheckCircle2, XCircle, Coffee, Search, Clock3 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Worker, Attendance, Site } from '@shared/schema';
 
 export default function AttendanceManagementPage() {
   const { userRole, userId } = useAuth();
   const { toast } = useToast();
+
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSite, setFilterSite] = useState('all');
@@ -47,7 +48,7 @@ export default function AttendanceManagementPage() {
 
   // Fetch attendance records
   const { data: attendanceRecords, isLoading: loadingAttendance } = useQuery({
-    queryKey: ['/api/attendance-management', selectedDate, filterSite, filterType, filterStatus],
+    queryKey: ['/api/attendance-management', selectedDate],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('attendance')
@@ -89,12 +90,15 @@ export default function AttendanceManagementPage() {
   // Calculate stats
   const stats = attendanceRecords?.reduce(
     (acc, record) => {
-      acc[record.status.toLowerCase()]++;
+      const status = record.status.toLowerCase().replace(' ', ''); // 'Half Day' -> 'halfday'
+      if (status in acc) {
+        acc[status]++;
+      }
       acc.total++;
       return acc;
     },
-    { present: 0, absent: 0, leave: 0, total: 0 }
-  ) || { present: 0, absent: 0, leave: 0, total: 0 };
+    { present: 0, absent: 0, leave: 0, halfday: 0, total: 0 }
+  ) || { present: 0, absent: 0, leave: 0, halfday: 0, total: 0 };
 
   return (
     <div className="w-full h-full flex flex-col gap-6 p-4 sm:p-6 lg:p-8 bg-background animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -118,7 +122,7 @@ export default function AttendanceManagementPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
@@ -160,6 +164,19 @@ export default function AttendanceManagementPage() {
                 <p className="text-2xl sm:text-3xl font-bold mt-1 text-chart-2">{stats.leave}</p>
               </div>
               <Coffee className="h-6 w-6 sm:h-8 sm:w-8 text-chart-2" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="col-span-2 lg:col-span-1">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-muted-foreground">Half Day</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-1 text-yellow-500">
+                  {stats.halfday}
+                </p>
+              </div>
+              <Clock3 className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-500" />
             </div>
           </CardContent>
         </Card>
@@ -221,6 +238,7 @@ export default function AttendanceManagementPage() {
                 <SelectItem value="Present">Present</SelectItem>
                 <SelectItem value="Absent">Absent</SelectItem>
                 <SelectItem value="Leave">Leave</SelectItem>
+                <SelectItem value="Half Day">Half Day</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -280,6 +298,7 @@ export default function AttendanceManagementPage() {
                                 ? 'destructive'
                                 : 'secondary'
                             }
+                            className={record.status === 'Half Day' ? 'bg-yellow-100 text-yellow-800' : ''}
                           >
                             {record.status}
                           </Badge>
@@ -299,4 +318,3 @@ export default function AttendanceManagementPage() {
     </div>
   );
 }
-

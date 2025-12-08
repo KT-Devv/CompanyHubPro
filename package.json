@@ -9,7 +9,11 @@
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "stress-test": "node stress-test.js",
+    "stress-test:light": "node stress-test.js --duration=30 --concurrency=5 --rps=50",
+    "stress-test:medium": "node stress-test.js --duration=60 --concurrency=20 --rps=200",
+    "stress-test:heavy": "node stress-test.js --duration=120 --concurrency=50 --rps=500"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

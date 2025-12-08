@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, CheckCircle2, XCircle, Coffee, Search, Plus, AlertCircle, Loader2 } from 'lucide-react';
+import { Calendar, CheckCircle2, XCircle, Coffee, Search, Plus, AlertCircle, Loader2, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Worker, Attendance } from '@shared/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 export default function AttendancePage() {
   const { userRole, userId, userSiteId } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [searchQuery, setSearchQuery] = useState('');
   const [openCrossSiteDialog, setOpenCrossSiteDialog] = useState(false);
@@ -25,8 +26,10 @@ export default function AttendancePage() {
   const [crossSiteResults, setCrossSiteResults] = useState<any[]>([]);
   const [isSearchingCrossSite, setIsSearchingCrossSite] = useState(false);
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
+  const [isUpdatingAttendance, setIsUpdatingAttendance] = useState<string | null>(null); // Track which worker is being updated
   const [confirmDialog, setConfirmDialog] = useState<{ workerId: string; status: string; fromCrossSite: boolean } | null>(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [confirmHalfDayDialog, setConfirmHalfDayDialog] = useState<any | null>(null);
 
   const isSupervisor = userRole === 'supervisor';
   const isSecretary = userRole === 'secretary';
@@ -148,6 +151,39 @@ export default function AttendancePage() {
       setIsMarkingAttendance(false);
     }
   }
+
+  // Update attendance status to "Half Day"
+  const { mutate: markHalfDay, isPending: isMarkingHalfDay } = useMutation({
+    mutationFn: async (attendanceRecord: any) => {
+      if (attendanceRecord.status !== 'Present') {
+        throw new Error('Can only mark "Present" workers as "Half Day".');
+      }
+      setConfirmHalfDayDialog(null); // Close dialog on submission
+      setIsUpdatingAttendance(attendanceRecord.worker_id);
+      const { error } = await supabase
+        .from('attendance')
+        .update({ status: 'Half Day' })
+        .eq('id', attendanceRecord.id);
+
+      if (error) throw error;
+      return attendanceRecord;
+    },
+    onSuccess: (updatedRecord) => {
+      const worker = workers?.find((w: any) => w.id === updatedRecord.worker_id);
+      toast({ title: 'Success', description: `${worker?.name || 'Worker'} has been marked for a half day.` });
+      // Invalidate both supervisor and management queries to ensure data consistency everywhere
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance-management'] });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+    onSettled: (data: any) => {
+      if (data) {
+        setIsUpdatingAttendance(null);
+      }
+    }
+  });
 
   // Search for workers from other sites
   async function searchCrossSiteWorker() {
@@ -381,13 +417,14 @@ export default function AttendancePage() {
               </div>
             ) : (
               filteredWorkers.map((worker: any) => {
-                const alreadyMarked = attendanceRecords?.some((r) => r.worker_id === worker.id);
+                const attendanceRecord = attendanceRecords?.find((r) => r.worker_id === worker.id);
+                const status = attendanceRecord?.status;
 
                 return (
                   <div
                     key={worker.id}
                     className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-md border transition-all duration-200 hover:shadow-sm ${
-                      alreadyMarked ? 'bg-muted/50 opacity-60' : 'bg-card hover:bg-muted/30'
+                      !!status ? 'bg-muted/50' : 'bg-card hover:bg-muted/30'
                     } animate-in fade-in slide-in-from-left-4`}
                     style={{ animationDelay: `${filteredWorkers.indexOf(worker) * 50}ms` }}
                     data-testid={`worker-row-${worker.id}`}
@@ -414,45 +451,65 @@ export default function AttendancePage() {
                           </span>
                         )}
                       </div>
-                      {alreadyMarked && (
-                        <p className="text-xs text-slate-600 mt-2 font-semibold">✓ Already marked for this date</p>
+                      {status && (
+                         <div className="mt-2">
+                           <Badge
+                             variant={
+                               status === 'Present' ? 'default'
+                               : status === 'Absent' ? 'destructive'
+                               : status === 'Half Day' ? 'secondary' // Use a neutral badge and style with class
+                               : 'secondary'
+                             }
+                             className={status === 'Half Day' ? 'bg-yellow-100 text-yellow-800' : ''}
+                           >
+                             Marked as {status}
+                           </Badge>
+                         </div>
                       )}
                     </div>
-                      <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                      <Button
-                        size="sm"
-                        className="border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
-                        onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Present', fromCrossSite: false })}
-                        disabled={alreadyMarked || isMarkingAttendance}
-                        data-testid={`button-present-${worker.id}`}
-                      >
-                        {isMarkingAttendance ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                        ) : (
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                        )}
-                        Present
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="border border-red-300 text-red-700 bg-white hover:bg-red-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
-                        onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Absent', fromCrossSite: false })}
-                        disabled={alreadyMarked || isMarkingAttendance}
-                        data-testid={`button-absent-${worker.id}`}
-                      >
-                        <XCircle className="h-4 w-4 mr-1" />
-                        Absent
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="border border-amber-300 text-amber-700 bg-white hover:bg-amber-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
-                        onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Leave', fromCrossSite: false })}
-                        disabled={alreadyMarked || isMarkingAttendance}
-                        data-testid={`button-leave-${worker.id}`}
-                      >
-                        <Coffee className="h-4 w-4 mr-1" />
-                        Leave
-                      </Button>
+                    <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                      {!status ? (
+                        <>
+                          <Button
+                            size="sm"
+                            className="border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
+                            onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Present', fromCrossSite: false })}
+                            disabled={isMarkingAttendance}
+                            data-testid={`button-present-${worker.id}`}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1" /> Present
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="border border-red-300 text-red-700 bg-white hover:bg-red-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
+                            onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Absent', fromCrossSite: false })}
+                            disabled={isMarkingAttendance}
+                            data-testid={`button-absent-${worker.id}`}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" /> Absent
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="border border-amber-300 text-amber-700 bg-white hover:bg-amber-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
+                            onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Leave', fromCrossSite: false })}
+                            disabled={isMarkingAttendance}
+                            data-testid={`button-leave-${worker.id}`}
+                          >
+                            <Coffee className="h-4 w-4 mr-1" /> Leave
+                          </Button>
+                        </>
+                      ) : status === 'Present' && isSupervisor ? (
+                        <Button
+                          size="sm"
+                          className="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold flex-1 sm:flex-none shadow-sm"
+                          onClick={() => setConfirmHalfDayDialog(attendanceRecord)}
+                          disabled={isUpdatingAttendance === worker.id || isMarkingHalfDay}
+                          data-testid={`button-half-day-${worker.id}`}
+                        >
+                          {isUpdatingAttendance === worker.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Clock className="h-4 w-4 mr-2" />}
+                          Mark as Half Day
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -512,6 +569,44 @@ export default function AttendancePage() {
                   </Button>
                 </>
               )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Half Day Confirmation Dialog */}
+      {confirmHalfDayDialog && (
+        <Dialog open={!!confirmHalfDayDialog} onOpenChange={(open) => !open && setConfirmHalfDayDialog(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-yellow-700">Confirm Half Day</DialogTitle>
+              <DialogDescription>
+                Please confirm this action. This will update the worker's status.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Alert className="border-yellow-400 bg-yellow-50">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertDescription className="text-slate-900 font-semibold ml-2">
+                  Update status to "Half Day" for {workers?.find((w: any) => w.id === confirmHalfDayDialog.worker_id)?.name}?
+                </AlertDescription>
+              </Alert>
+              <p className="text-sm text-slate-700 font-semibold">
+                This will adjust the attendance record from a full day to a half day.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmHalfDayDialog(null)} disabled={isMarkingHalfDay}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => markHalfDay(confirmHalfDayDialog)}
+                disabled={isMarkingHalfDay}
+                className="bg-yellow-600 hover:bg-yellow-700 text-white shadow-lg font-semibold"
+              >
+                {isMarkingHalfDay && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Confirm Half Day
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
