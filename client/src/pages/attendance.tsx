@@ -86,71 +86,55 @@ export default function AttendancePage() {
     refetchOnWindowFocus: true,
   });
 
-  // Immediately submit attendance for a single worker
-  async function markAttendance(workerId: string, status: string, fromCrossSite: boolean = false) {
-    const worker = fromCrossSite 
-      ? crossSiteResults.find((w: any) => w.id === workerId)
-      : workers?.find((w: any) => w.id === workerId);
-    
-    if (!worker) {
-      toast({
-        title: "Worker not found",
-        description: "Unable to locate worker information",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsMarkingAttendance(true);
-    try {
-      const { error } = await supabase.from('attendance').insert({
-        worker_id: workerId,
+  // Mutation for marking/updating attendance
+  const { mutate: markAttendance, isPending: isMarking } = useMutation({
+    mutationFn: async ({ worker, status }: { worker: any; status: string }) => {
+      const existingRecord = attendanceRecords?.find(r => r.worker_id === worker.id);
+      const record = {
+        worker_id: worker.id,
         date: selectedDate,
-        status,
+        status: status,
         marked_by: userId,
         worker_type: worker.worker_type,
-      });
-      if (error) {
-        // Handle specific error cases
-        if (error.message.includes('duplicate') || error.code === '23505') {
-          throw new Error(`${worker.name} has already been marked for ${format(new Date(selectedDate), 'MMMM dd, yyyy')}`);
-        }
-        throw error;
-      }
+      };
 
+      // Use upsert to either insert a new record or update an existing one based on worker_id and date
+      // Note: This requires a UNIQUE constraint on (worker_id, date) in your 'attendance' table.
+      const { error } = await supabase.from('attendance').upsert(record, {
+        onConflict: 'worker_id, date',
+      });
+
+      if (error) throw error;
+      return { worker, status };
+    },
+    onSuccess: ({ worker, status }) => {
       toast({
-        title: "Attendance recorded",
-        description: `${worker.name} marked ${status} on ${format(new Date(selectedDate), 'MMM dd')}`,
+        title: 'Attendance Recorded',
+        description: `${worker.name} marked as ${status}.`,
       });
-
-      // Show confirmed state
       setIsConfirmed(true);
-
-      // Close confirmation dialog after a short delay
       setTimeout(() => {
         setConfirmDialog(null);
         setIsConfirmed(false);
+        if (openCrossSiteDialog) {
+          setOpenCrossSiteDialog(false);
+          setCrossSiteQuery('');
+          setCrossSiteResults([]);
+        }
       }, 1500);
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance', selectedDate] });
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance-management', selectedDate] });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Could not record attendance', description: error.message, variant: 'destructive' });
+    },
+  });
 
-      // Close cross-site dialog and clear search if applicable
-      if (fromCrossSite) {
-        setOpenCrossSiteDialog(false);
-        setCrossSiteQuery('');
-        setCrossSiteResults([]);
-      }
-
-      refetchAttendance();
-    } catch (error: any) {
-      // Handle duplicate (already marked) or other errors
-      toast({
-        title: "Could not record attendance",
-        description: error.message || "Please try again",
-        variant: "destructive",
-      });
-    } finally {
-      setIsMarkingAttendance(false);
-    }
-  }
+  const handleMarkAttendance = (workerId: string, status: string, fromCrossSite: boolean = false) => {
+    setIsMarkingAttendance(true);
+    const worker = fromCrossSite ? crossSiteResults.find(w => w.id === workerId) : workers?.find((w: { id: string; }) => w.id === workerId);
+    if (worker) markAttendance({ worker, status });
+  };
 
   // Update attendance status to "Half Day"
   const { mutate: markHalfDay, isPending: isMarkingHalfDay } = useMutation({
@@ -172,16 +156,15 @@ export default function AttendancePage() {
       const worker = workers?.find((w: any) => w.id === updatedRecord.worker_id);
       toast({ title: 'Success', description: `${worker?.name || 'Worker'} has been marked for a half day.` });
       // Invalidate both supervisor and management queries to ensure data consistency everywhere
-      queryClient.invalidateQueries({ queryKey: ['/api/attendance', selectedDate] });
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/attendance-management', selectedDate] });
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     },
     onSettled: (data: any) => {
-      if (data) {
-        setIsUpdatingAttendance(null);
-      }
+      // Always reset the loading state for the specific button after the mutation is settled.
+      setIsUpdatingAttendance(null);
     }
   });
 
@@ -558,13 +541,13 @@ export default function AttendancePage() {
                   <Button
                     onClick={() => {
                       if (confirmDialog) {
-                        markAttendance(confirmDialog.workerId, confirmDialog.status, confirmDialog.fromCrossSite);
+                        handleMarkAttendance(confirmDialog.workerId, confirmDialog.status, confirmDialog.fromCrossSite);
                       }
                     }}
-                    disabled={isMarkingAttendance}
+                    disabled={isMarking}
                     className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg font-semibold"
                   >
-                    {isMarkingAttendance && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    {isMarking && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                     Confirm
                   </Button>
                 </>
