@@ -6,7 +6,7 @@ import { z } from "zod";
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["owner", "hr", "project_manager", "supervisor", "secretary"]);
 export const workerTypeEnum = pgEnum("worker_type", ["office", "grounds"]);
-export const attendanceStatusEnum = pgEnum("attendance_status", ["Present", "Absent", "Leave"]);
+export const attendanceStatusEnum = pgEnum("attendance_status", ["Present", "Absent", "Leave", "Half Day"]);
 export const goodsLogTypeEnum = pgEnum("goods_log_type", ["sent", "received"]);
 export const invoiceTypeEnum = pgEnum("invoice_type", ["purchase", "sale"]);
 

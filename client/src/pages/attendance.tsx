@@ -122,7 +122,7 @@ export default function AttendancePage() {
           setCrossSiteResults([]);
         }
       }, 1500);
-      queryClient.invalidateQueries({ queryKey: ['/api/attendance', selectedDate] });
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance', selectedDate, userRole] });
       queryClient.invalidateQueries({ queryKey: ['/api/attendance-management', selectedDate] });
     },
     onError: (error: any) => {
@@ -142,7 +142,6 @@ export default function AttendancePage() {
       if (attendanceRecord.status !== 'Present') {
         throw new Error('Can only mark "Present" workers as "Half Day".');
       }
-      setConfirmHalfDayDialog(null); // Close dialog on submission
       setIsUpdatingAttendance(attendanceRecord.worker_id);
       const { error } = await supabase
         .from('attendance')
@@ -153,10 +152,11 @@ export default function AttendancePage() {
       return attendanceRecord;
     },
     onSuccess: (updatedRecord) => {
+      setConfirmHalfDayDialog(null); // Close dialog on success
       const worker = workers?.find((w: any) => w.id === updatedRecord.worker_id);
       toast({ title: 'Success', description: `${worker?.name || 'Worker'} has been marked for a half day.` });
       // Invalidate both supervisor and management queries to ensure data consistency everywhere
-      queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance', selectedDate, userRole] });
       queryClient.invalidateQueries({ queryKey: ['/api/attendance-management', selectedDate] });
     },
     onError: (error: any) => {
