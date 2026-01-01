@@ -161,6 +161,8 @@ export default function AttendancePage() {
       // Invalidate both supervisor and management queries to ensure data consistency everywhere
       queryClient.invalidateQueries({ queryKey: ['/api/attendance', selectedDate, userRole] });
       queryClient.invalidateQueries({ queryKey: ['/api/attendance-management', selectedDate] });
+      // Also invalidate all attendance-management queries to be safe
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance-management'] });
     },
     onError: (error: any) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
