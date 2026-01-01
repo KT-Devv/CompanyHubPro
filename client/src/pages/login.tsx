@@ -30,6 +30,9 @@ export default function Login() {
         description: error.message || "Failed to log in",
         variant: "destructive",
       });
+      // Clear credentials on login failure
+      setEmail('');
+      setPassword('');
     } finally {
       setLoading(false);
     }
