@@ -142,32 +142,54 @@ export default function AttendancePage() {
   // Update attendance status to "Half Day"
   const { mutate: markHalfDay, isPending: isMarkingHalfDay } = useMutation({
     mutationFn: async (attendanceRecord: any) => {
+      if (!attendanceRecord) throw new Error('No attendance record provided');
       if (attendanceRecord.status !== 'Present') {
         throw new Error('Can only mark "Present" workers as "Half Day".');
       }
       setIsUpdatingAttendance(attendanceRecord.worker_id);
-      const { error } = await supabase
+
+      // Update and return the updated row so we can update cache immediately
+      const { data: updatedRow, error } = await supabase
         .from('attendance')
         .update({ status: 'Half Day' })
-        .eq('id', attendanceRecord.id);
+        .eq('id', attendanceRecord.id)
+        .select()
+        .limit(1)
+        .single();
 
       if (error) throw error;
-      return attendanceRecord;
+      return updatedRow;
     },
-    onSuccess: (updatedRecord) => {
+    onSuccess: (updatedRow: any) => {
       setConfirmHalfDayDialog(null); // Close dialog on success
-      const worker = workers?.find((w: any) => w.id === updatedRecord.worker_id);
+      const worker = workers?.find((w: any) => w.id === updatedRow.worker_id);
       toast({ title: 'Success', description: `${worker?.name || 'Worker'} has been marked for a half day.` });
-      // Invalidate both supervisor and management queries to ensure data consistency everywhere
+
+      // Optimistically update react-query cache for attendance lists
+      try {
+        // Update attendance list for management page (by date)
+        queryClient.setQueryData(['/api/attendance-management', selectedDate], (oldData: any) => {
+          if (!oldData) return oldData;
+          return (oldData as any[]).map((r) => (r.id === updatedRow.id ? { ...r, ...updatedRow } : r));
+        });
+
+        // Update supervisor view too
+        queryClient.setQueryData(['/api/attendance', selectedDate, userRole], (oldData: any) => {
+          if (!oldData) return oldData;
+          return (oldData as any[]).map((r) => (r.id === updatedRow.id ? { ...r, ...updatedRow } : r));
+        });
+      } catch (e) {
+        // ignore cache patch errors
+      }
+
+      // Ensure fresh data across app
       queryClient.invalidateQueries({ queryKey: ['/api/attendance', selectedDate, userRole] });
       queryClient.invalidateQueries({ queryKey: ['/api/attendance-management', selectedDate] });
-      // Also invalidate all attendance-management queries to be safe
-      queryClient.invalidateQueries({ queryKey: ['/api/attendance-management'] });
     },
     onError: (error: any) => {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({ title: 'Error', description: error.message || 'Failed to mark half day', variant: 'destructive' });
     },
-    onSettled: (data: any) => {
+    onSettled: () => {
       // Always reset the loading state for the specific button after the mutation is settled.
       setIsUpdatingAttendance(null);
     }

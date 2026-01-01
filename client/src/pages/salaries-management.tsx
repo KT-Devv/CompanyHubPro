@@ -74,12 +74,13 @@ export default function SalariesManagementPage() {
   const { data: attendanceRecords, isLoading: loadingAttendance } = useQuery({
     queryKey: ['/api/attendance-salary', selectedMonth],
     queryFn: async () => {
+      // Include both full and half day statuses so calculations can weight half days as 0.5
       const { data, error } = await supabase
         .from('attendance')
         .select('worker_id, date, status')
         .gte('date', format(monthStart, 'yyyy-MM-dd'))
         .lte('date', format(monthEnd, 'yyyy-MM-dd'))
-        .eq('status', 'Present');
+        .in('status', ['Present', 'Half Day']);
       if (error) throw error;
       return data as any[];
     },
@@ -132,9 +133,14 @@ export default function SalariesManagementPage() {
     workers.forEach((worker: any) => {
       if (worker.worker_type === 'grounds') {
         // Ground workers: Calculate based on days present × portfolio rate
-        const daysPresent = attendanceRecords?.filter(
-          (record) => record.worker_id === worker.id
-        ).length || 0;
+        // Count full day as 1 and half day as 0.5
+        const daysPresent = attendanceRecords
+          ?.filter((record) => record.worker_id === worker.id)
+          .reduce((sum, record) => {
+            if (record.status === 'Present') return sum + 1;
+            if (record.status === 'Half Day') return sum + 0.5;
+            return sum;
+          }, 0) || 0;
 
         const rate = worker.portfolios?.rate || 0;
         const baseSalary = daysPresent * rate;
