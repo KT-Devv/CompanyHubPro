@@ -25,7 +25,7 @@ export default function AttendancePage() {
   const [crossSiteQuery, setCrossSiteQuery] = useState('');
   const [crossSiteResults, setCrossSiteResults] = useState<any[]>([]);
   const [isSearchingCrossSite, setIsSearchingCrossSite] = useState(false);
-  const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
+  const [isMarkingAttendance, setIsMarkingAttendance] = useState<string | null>(null);
   const [isUpdatingAttendance, setIsUpdatingAttendance] = useState<string | null>(null); // Track which worker is being updated
   const [confirmDialog, setConfirmDialog] = useState<{ workerId: string; status: string; fromCrossSite: boolean } | null>(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
@@ -128,10 +128,13 @@ export default function AttendancePage() {
     onError: (error: any) => {
       toast({ title: 'Could not record attendance', description: error.message, variant: 'destructive' });
     },
+    onSettled: () => {
+      setIsMarkingAttendance(null);
+    },
   });
 
   const handleMarkAttendance = (workerId: string, status: string, fromCrossSite: boolean = false) => {
-    setIsMarkingAttendance(true);
+    setIsMarkingAttendance(workerId);
     const worker = fromCrossSite ? crossSiteResults.find(w => w.id === workerId) : workers?.find((w: { id: string; }) => w.id === workerId);
     if (worker) markAttendance({ worker, status });
   };
@@ -319,10 +322,10 @@ export default function AttendancePage() {
                                   size="sm"
                                   className="border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50 font-semibold"
                                   onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Present', fromCrossSite: true })}
-                                  disabled={alreadyMarked || isMarkingAttendance}
+                                  disabled={alreadyMarked || isMarkingAttendance === worker.id}
                                   data-testid={`button-cross-present-${worker.id}`}
                                 >
-                                  {isMarkingAttendance ? (
+                                  {isMarkingAttendance === worker.id ? (
                                     <Loader2 className="h-4 w-4 animate-spin mr-1" />
                                   ) : (
                                     <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -333,7 +336,7 @@ export default function AttendancePage() {
                                   size="sm"
                                   className="border border-red-300 text-red-700 bg-white hover:bg-red-50 font-semibold"
                                   onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Absent', fromCrossSite: true })}
-                                  disabled={alreadyMarked || isMarkingAttendance}
+                                  disabled={alreadyMarked || isMarkingAttendance === worker.id}
                                   data-testid={`button-cross-absent-${worker.id}`}
                                 >
                                   <XCircle className="h-4 w-4 mr-1" />
@@ -343,7 +346,7 @@ export default function AttendancePage() {
                                   size="sm"
                                   className="border border-amber-300 text-amber-700 bg-white hover:bg-amber-50 font-semibold"
                                   onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Leave', fromCrossSite: true })}
-                                  disabled={alreadyMarked || isMarkingAttendance}
+                                  disabled={alreadyMarked || isMarkingAttendance === worker.id}
                                   data-testid={`button-cross-leave-${worker.id}`}
                                 >
                                   <Coffee className="h-4 w-4 mr-1" />
@@ -457,7 +460,7 @@ export default function AttendancePage() {
                             size="sm"
                             className="border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
                             onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Present', fromCrossSite: false })}
-                            disabled={isMarkingAttendance}
+                            disabled={isMarkingAttendance === worker.id}
                             data-testid={`button-present-${worker.id}`}
                           >
                             <CheckCircle2 className="h-4 w-4 mr-1" /> Present
@@ -466,7 +469,7 @@ export default function AttendancePage() {
                             size="sm"
                             className="border border-red-300 text-red-700 bg-white hover:bg-red-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
                             onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Absent', fromCrossSite: false })}
-                            disabled={isMarkingAttendance}
+                            disabled={isMarkingAttendance === worker.id}
                             data-testid={`button-absent-${worker.id}`}
                           >
                             <XCircle className="h-4 w-4 mr-1" /> Absent
@@ -475,7 +478,7 @@ export default function AttendancePage() {
                             size="sm"
                             className="border border-amber-300 text-amber-700 bg-white hover:bg-amber-50 font-semibold flex-1 sm:flex-none sm:min-w-[80px]"
                             onClick={() => setConfirmDialog({ workerId: worker.id, status: 'Leave', fromCrossSite: false })}
-                            disabled={isMarkingAttendance}
+                            disabled={isMarkingAttendance === worker.id}
                             data-testid={`button-leave-${worker.id}`}
                           >
                             <Coffee className="h-4 w-4 mr-1" /> Leave
@@ -535,7 +538,7 @@ export default function AttendancePage() {
             <DialogFooter>
               {!isConfirmed && (
                 <>
-                  <Button variant="outline" onClick={() => setConfirmDialog(null)} disabled={isMarkingAttendance} className="border-2 border-slate-300">
+                  <Button variant="outline" onClick={() => setConfirmDialog(null)} className="border-2 border-slate-300">
                     Cancel
                   </Button>
                   <Button
