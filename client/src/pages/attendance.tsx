@@ -279,6 +279,9 @@ export default function AttendancePage() {
     return matchesSearch;
   }) || [];
 
+  // Workers that can be selected for batch marking (not already marked)
+  const selectableWorkers = filteredWorkers.filter((w: any) => !attendanceRecords?.some((r: any) => r.worker_id === w.id));
+
   if (loadingWorkers) {
     return (
       <div className="p-6 lg:p-8 space-y-6">
@@ -460,13 +463,13 @@ export default function AttendancePage() {
             <div className="flex items-center gap-2">
               <Checkbox
                 id="select-all"
-                checked={filteredWorkers.length > 0 && selectedWorkers.length === filteredWorkers.length}
+                checked={selectableWorkers.length > 0 && selectedWorkers.length === selectableWorkers.length}
                 onCheckedChange={(val) => {
-                  if (val) setSelectedWorkers(filteredWorkers.map((w: any) => w.id));
+                  if (val) setSelectedWorkers(selectableWorkers.map((w: any) => w.id));
                   else setSelectedWorkers([]);
                 }}
               />
-              <span className="text-sm text-slate-700">Select all</span>
+              <span className="text-sm text-slate-700">Select all (unmarked only)</span>
             </div>
             <div>
               <Button
@@ -505,6 +508,7 @@ export default function AttendancePage() {
                         <Checkbox
                           id={`select-${worker.id}`}
                           checked={selectedWorkers.includes(worker.id)}
+                          disabled={!!status}
                           onCheckedChange={(val) => {
                             if (val) setSelectedWorkers((s) => Array.from(new Set([...s, worker.id])));
                             else setSelectedWorkers((s) => s.filter((id) => id !== worker.id));
