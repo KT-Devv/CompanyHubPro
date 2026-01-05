@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +15,9 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
   const { toast } = useToast();
+  const [openForgot, setOpenForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -78,6 +83,15 @@ export default function Login() {
                 data-testid="input-password"
               />
             </div>
+            <div className="text-right">
+              <button
+                type="button"
+                className="text-sm text-primary hover:underline"
+                onClick={() => setOpenForgot(true)}
+              >
+                Forgot password?
+              </button>
+            </div>
             <Button
               type="submit"
               className="w-full"
@@ -96,6 +110,55 @@ export default function Login() {
           </form>
         </CardContent>
       </Card>
+      <Dialog open={openForgot} onOpenChange={setOpenForgot}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reset password</DialogTitle>
+            <DialogDescription>Enter your account email to receive a reset link.</DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-2">
+            <Label htmlFor="forgot-email">Email</Label>
+            <Input
+              id="forgot-email"
+              type="email"
+              placeholder="you@company.com"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              disabled={resetLoading}
+            />
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setOpenForgot(false)}
+              disabled={resetLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                setResetLoading(true);
+                try {
+                  const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+                    redirectTo: `${window.location.origin}/reset-password`,
+                  });
+                  if (error) throw error;
+                  toast({ title: 'Check your email', description: 'Password reset link sent if the account exists.' });
+                  setOpenForgot(false);
+                  setForgotEmail('');
+                } catch (err: any) {
+                  toast({ title: 'Error', description: err?.message || 'Failed to send reset link', variant: 'destructive' });
+                } finally {
+                  setResetLoading(false);
+                }
+              }}
+              disabled={resetLoading || !forgotEmail}
+            >
+              {resetLoading ? 'Sending...' : 'Send reset link'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

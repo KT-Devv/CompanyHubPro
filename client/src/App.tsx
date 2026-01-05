@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { AppSidebar } from "@/components/app-sidebar";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
+import ResetPassword from "@/pages/reset-password";
 import AttendancePage from "@/pages/attendance";
 import AttendanceManagementPage from "@/pages/attendance-management";
 import LogisticsPage from "@/pages/logistics";
@@ -85,6 +86,7 @@ function Router() {
 
   return (
     <Switch>
+    <Route path="/reset-password" component={ResetPassword} />
       <Route path="/login" component={LoginWrapper} />
       <Route path="/">
         {user ? <RoleBasedRedirect /> : <Redirect to="/login" />}

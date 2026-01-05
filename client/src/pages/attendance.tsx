@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar, CheckCircle2, XCircle, Coffee, Search, Plus, AlertCircle, Loader2, Clock } from 'lucide-react';
+import { Calendar, CheckCircle2, XCircle, Coffee, Search, Plus, AlertCircle, Loader2, Clock, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Worker, Attendance } from '@shared/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -30,6 +31,8 @@ export default function AttendancePage() {
   const [confirmDialog, setConfirmDialog] = useState<{ workerId: string; status: string; fromCrossSite: boolean } | null>(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [confirmHalfDayDialog, setConfirmHalfDayDialog] = useState<any | null>(null);
+  const [selectedWorkers, setSelectedWorkers] = useState<string[]>([]);
+  const [multiConfirmDialog, setMultiConfirmDialog] = useState(false);
 
   const isSupervisor = userRole === 'supervisor';
   const isSecretary = userRole === 'secretary';
@@ -86,7 +89,7 @@ export default function AttendancePage() {
     refetchOnWindowFocus: true,
   });
 
-  // Mutation for marking/updating attendance
+  // Mutation for marking/updating attendance (single)
   const { mutate: markAttendance, isPending: isMarking } = useMutation({
     mutationFn: async ({ worker, status }: { worker: any; status: string }) => {
       const existingRecord = attendanceRecords?.find(r => r.worker_id === worker.id);
@@ -130,6 +133,39 @@ export default function AttendancePage() {
     },
     onSettled: () => {
       setIsMarkingAttendance(null);
+    },
+  });
+
+  // Batch mark multiple workers as Present
+  const { mutate: markMultiple, isPending: isMarkingMultiple } = useMutation({
+    mutationFn: async (workerIds: string[]) => {
+      const toMark = (workerIds || []).filter(id => !attendanceRecords?.some(r => r.worker_id === id));
+      if (!toMark || toMark.length === 0) throw new Error('Selected workers are already marked for this date');
+
+      const records = toMark.map((id) => {
+        const worker = workers?.find((w: any) => w.id === id);
+        return {
+          worker_id: id,
+          date: selectedDate,
+          status: 'Present',
+          marked_by: userId,
+          worker_type: worker?.worker_type,
+        };
+      });
+
+      const { error } = await supabase.from('attendance').upsert(records, { onConflict: 'worker_id, date' });
+      if (error) throw error;
+      return toMark;
+    },
+    onSuccess: (markedIds: string[]) => {
+      toast({ title: 'Attendance Recorded', description: `${markedIds.length} worker(s) marked as Present.` });
+      setSelectedWorkers([]);
+      setMultiConfirmDialog(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance', selectedDate, userRole] });
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance-management', selectedDate] });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Could not record attendance', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -257,7 +293,7 @@ export default function AttendancePage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold text-slate-800">Mark Attendance</h1>
@@ -395,7 +431,7 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      <Card className="animate-in fade-in slide-in-from-bottom-6 duration-700 delay-150 border border-gray-200 shadow-sm bg-white">
+      <Card className="border border-gray-200 shadow-sm bg-white">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 space-y-0 pb-4 bg-white border-b border-gray-100">
           <div>
             <CardTitle className="text-xl sm:text-2xl font-semibold text-slate-800">Mark Attendance</CardTitle>
@@ -419,6 +455,32 @@ export default function AttendancePage() {
             </div>
           </div>
 
+          {/* Multi-select toolbar */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="select-all"
+                checked={filteredWorkers.length > 0 && selectedWorkers.length === filteredWorkers.length}
+                onCheckedChange={(val) => {
+                  if (val) setSelectedWorkers(filteredWorkers.map((w: any) => w.id));
+                  else setSelectedWorkers([]);
+                }}
+              />
+              <span className="text-sm text-slate-700">Select all</span>
+            </div>
+            <div>
+              <Button
+                size="sm"
+                onClick={() => setMultiConfirmDialog(true)}
+                disabled={selectedWorkers.length === 0}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                data-testid="button-mark-selected"
+              >
+                Mark Selected Present ({selectedWorkers.length})
+              </Button>
+            </div>
+          </div>
+
           {/* Worker List */}
           <div className="space-y-2">
             {filteredWorkers.length === 0 ? (
@@ -433,14 +495,23 @@ export default function AttendancePage() {
                 return (
                   <div
                     key={worker.id}
-                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-md border transition-all duration-200 hover:shadow-sm ${
+                    className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 sm:p-4 rounded-md border duration-200 hover:shadow-sm ${
                       !!status ? 'bg-muted/50' : 'bg-card hover:bg-muted/30'
-                    } animate-in fade-in slide-in-from-left-4`}
-                    style={{ animationDelay: `${filteredWorkers.indexOf(worker) * 50}ms` }}
+                    }`}
                     data-testid={`worker-row-${worker.id}`}
                   >
                     <div className="flex-1 w-full sm:min-w-[200px]">
-                      <p className="font-semibold text-sm sm:text-base text-slate-900">{worker.name}</p>
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id={`select-${worker.id}`}
+                          checked={selectedWorkers.includes(worker.id)}
+                          onCheckedChange={(val) => {
+                            if (val) setSelectedWorkers((s) => Array.from(new Set([...s, worker.id])));
+                            else setSelectedWorkers((s) => s.filter((id) => id !== worker.id));
+                          }}
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-sm sm:text-base text-slate-900">{worker.name}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-2">
                         <Badge variant="secondary" className="text-xs bg-gray-100 text-slate-700 border border-gray-200">
                           {worker.worker_type === 'office' ? '🏢' : '🔧'} {worker.worker_type}
@@ -476,6 +547,8 @@ export default function AttendancePage() {
                            </Badge>
                          </div>
                       )}
+                        </div>
+                      </div>
                     </div>
                     <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                       {!status ? (
@@ -532,7 +605,7 @@ export default function AttendancePage() {
       {/* Confirmation Dialog */}
       {confirmDialog && (
         <Dialog open={!!confirmDialog} onOpenChange={(open) => !open && !isConfirmed && setConfirmDialog(null)}>
-          <DialogContent className={`max-w-sm border-2 border-blue-300 shadow-2xl transition-opacity duration-700 ${isConfirmed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <DialogContent className={`max-w-sm border-2 border-blue-300 shadow-2xl`}>
             <DialogHeader>
               <DialogTitle className={`text-2xl font-bold ${isConfirmed ? 'text-green-700' : 'text-blue-700'}`}>
                 {isConfirmed ? '✓ Confirmed' : '✓ Confirm Attendance'}
@@ -556,7 +629,7 @@ export default function AttendancePage() {
             )}
             {isConfirmed && (
               <div className="flex justify-center py-8">
-                <CheckCircle2 className="h-16 w-16 text-green-500 animate-bounce" />
+                <CheckCircle2 className="h-16 w-16 text-green-500" />
               </div>
             )}
             <DialogFooter>
@@ -616,6 +689,36 @@ export default function AttendancePage() {
               >
                 {isMarkingHalfDay && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Confirm Half Day
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Multi-select Confirmation Dialog */}
+      {multiConfirmDialog && (
+        <Dialog open={multiConfirmDialog} onOpenChange={(open) => !open && setMultiConfirmDialog(false)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold">Confirm Mark Present</DialogTitle>
+              <DialogDescription>
+                Mark {selectedWorkers.length} selected worker(s) as Present for {format(new Date(selectedDate), 'MMMM dd, yyyy')}?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-slate-700 font-semibold">This will record attendance for the selected workers.</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setMultiConfirmDialog(false)} disabled={isMarkingMultiple}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => markMultiple(selectedWorkers)}
+                disabled={isMarkingMultiple}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {isMarkingMultiple && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Confirm
               </Button>
             </DialogFooter>
           </DialogContent>
