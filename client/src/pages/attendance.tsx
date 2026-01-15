@@ -93,7 +93,7 @@ export default function AttendancePage() {
   const { mutate: markAttendance, isPending: isMarking } = useMutation({
     mutationFn: async ({ worker, status }: { worker: any; status: string }) => {
       const existingRecord = attendanceRecords?.find(r => r.worker_id === worker.id);
-      const record = {
+      const record = { 
         worker_id: worker.id,
         date: selectedDate,
         status: status,

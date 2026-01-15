@@ -18,6 +18,7 @@ export default function Login() {
   const [openForgot, setOpenForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const siteUrl = (import.meta.env.VITE_SITE_URL as string) || window.location.origin;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -140,7 +141,7 @@ export default function Login() {
                 setResetLoading(true);
                 try {
                   const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-                    redirectTo: `${window.location.origin}/reset-password`,
+                    redirectTo: `${siteUrl}/reset-password`,
                   });
                   if (error) throw error;
                   toast({ title: 'Check your email', description: 'Password reset link sent if the account exists.' });
