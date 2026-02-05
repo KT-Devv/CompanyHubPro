@@ -543,22 +543,101 @@ function AddGoodsLogDialog({ stores, inventory }: { stores: Store[]; inventory: 
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('goods_log').insert({
-        item_id: formData.itemId,
-        store_from: formData.type === 'sent' ? formData.storeFrom : null,
-        store_to: formData.storeTo,
-        quantity: parseInt(formData.quantity),
-        type: formData.type,
-      });
+      const quantity = parseInt(formData.quantity);
 
-      if (error) throw error;
+      if (isNaN(quantity) || quantity <= 0) throw new Error('Quantity must be a positive integer');
+
+      // Fetch the inventory row for the selected item
+      const { data: srcItem, error: fetchErr } = await supabase
+        .from('inventory')
+        .select('*')
+        .eq('id', formData.itemId)
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
+      if (!srcItem) throw new Error('Selected inventory item not found');
+
+      if (formData.type === 'sent') {
+        if (!formData.storeFrom) throw new Error('Source store is required for sent transfers');
+        if (srcItem.store_id !== formData.storeFrom) throw new Error('Selected item does not belong to the chosen source store');
+        if ((srcItem.quantity || 0) < quantity) throw new Error('Insufficient quantity in source store');
+      }
+
+      // Helper: add quantity to a store (create row if missing)
+      const addToStore = async (storeId: string, itemName: string, qty: number) => {
+        const { data: targetRow, error: findErr } = await supabase
+          .from('inventory')
+          .select('*')
+          .eq('store_id', storeId)
+          .eq('item_name', itemName)
+          .maybeSingle();
+
+        if (findErr) throw findErr;
+
+        if (targetRow) {
+          const { error: updErr } = await supabase
+            .from('inventory')
+            .update({ quantity: (targetRow.quantity || 0) + qty, last_updated: new Date() })
+            .eq('id', targetRow.id);
+          if (updErr) throw updErr;
+        } else {
+          const { error: insErr } = await supabase.from('inventory').insert({
+            store_id: storeId,
+            item_name: itemName,
+            quantity: qty,
+            last_updated: new Date(),
+          });
+          if (insErr) throw insErr;
+        }
+      };
+
+      // Insert goods log first so we have record id to delete on rollback
+      const { data: insertedLog, error: logErr } = await supabase
+        .from('goods_log')
+        .insert({
+          item_id: formData.itemId,
+          store_from: formData.type === 'sent' ? formData.storeFrom : null,
+          store_to: formData.storeTo,
+          quantity,
+          type: formData.type,
+        })
+        .select('*')
+        .maybeSingle();
+
+      if (logErr) throw logErr;
+
+      try {
+        const itemName = srcItem.item_name;
+
+        if (formData.type === 'sent') {
+          // decrement source
+          const { error: decErr } = await supabase
+            .from('inventory')
+            .update({ quantity: (srcItem.quantity || 0) - quantity, last_updated: new Date() })
+            .eq('id', srcItem.id);
+          if (decErr) throw decErr;
+
+          // increment/create target
+          await addToStore(formData.storeTo, itemName, quantity);
+        } else {
+          // received -> only add to destination
+          await addToStore(formData.storeTo, itemName, quantity);
+        }
+      } catch (invErr) {
+        // Rollback goods_log
+        if (insertedLog && insertedLog.id) {
+          await supabase.from('goods_log').delete().eq('id', insertedLog.id);
+        }
+        throw invErr;
+      }
 
       toast({
-        title: "Success",
-        description: "Goods log added successfully",
+        title: 'Success',
+        description: 'Goods log added and inventory updated',
       });
 
       queryClient.invalidateQueries({ queryKey: ['/api/goods-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
       setOpen(false);
       setFormData({ itemId: '', storeFrom: '', storeTo: '', quantity: '', type: 'sent' });
     } catch (error: any) {
