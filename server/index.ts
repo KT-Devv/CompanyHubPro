@@ -54,7 +54,7 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    throw err;
+    // Do not rethrow - response already sent; rethrowing can cause unhandled rejection
   });
 
   // importantly only setup vite in development and after
