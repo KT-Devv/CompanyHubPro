@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Package, TrendingUp, TrendingDown, ArrowRight, Plus, FileText, Search } from 'lucide-react';
+import { Package, TrendingUp, TrendingDown, ArrowRight, Plus, FileText, Search, AlertCircle, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryClient } from '@/lib/queryClient';
 import type { Store, Inventory, GoodsLog, Invoice } from '@shared/schema';
@@ -300,7 +300,11 @@ export default function LogisticsPage() {
                       data-testid={`goods-log-${log.id}`}
                     >
                       <div className="flex-1 min-w-[200px]">
-                        <p className="font-medium">{log.inventory?.item_name}</p>
+                        <p className="font-medium flex items-center gap-2">
+                          {log.inventory?.item_name}
+                          {log.status === 'error' && <AlertCircle className="h-4 w-4 text-destructive" />}
+                          {log.status === 'matched' && <CheckCircle className="h-4 w-4 text-green-500" />}
+                        </p>
                         <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                           {log.type === 'sent' ? (
                             <>
@@ -564,77 +568,79 @@ function AddGoodsLogDialog({ stores, inventory }: { stores: Store[]; inventory: 
       }
 
       // Helper: add quantity to a store (create row if missing)
-      const addToStore = async (storeId: string, itemName: string, qty: number) => {
-        const { data: targetRow, error: findErr } = await supabase
-          .from('inventory')
-          .select('*')
-          .eq('store_id', storeId)
-          .eq('item_name', itemName)
-          .maybeSingle();
+      const addToInventory = async (storeId: string, itemName: string, qty: number) => {
+        const { data: targetRow, error: fetchErr } = await supabase.from('inventory')
+          .select('*').eq('store_id', storeId).eq('item_name', itemName).maybeSingle();
 
-        if (findErr) throw findErr;
+        if (fetchErr) throw fetchErr;
 
         if (targetRow) {
-          const { error: updErr } = await supabase
-            .from('inventory')
-            .update({ quantity: (targetRow.quantity || 0) + qty, last_updated: new Date() })
-            .eq('id', targetRow.id);
+          const { error: updErr } = await supabase.from('inventory').update({ quantity: (targetRow.quantity || 0) + qty, last_updated: new Date() }).eq('id', targetRow.id);
           if (updErr) throw updErr;
         } else {
-          const { error: insErr } = await supabase.from('inventory').insert({
-            store_id: storeId,
-            item_name: itemName,
-            quantity: qty,
-            last_updated: new Date(),
-          });
+          const { error: insErr } = await supabase.from('inventory').insert({ store_id: storeId, item_name: itemName, quantity: qty, last_updated: new Date() });
           if (insErr) throw insErr;
         }
       };
 
-      // Insert goods log first so we have record id to delete on rollback
-      const { data: insertedLog, error: logErr } = await supabase
-        .from('goods_log')
-        .insert({
+      if (formData.type === 'sent') {
+        const { data: srcItem } = await supabase.from('inventory').select('*').eq('id', formData.itemId).single();
+        if ((srcItem.quantity || 0) < quantity) throw new Error('Insufficient quantity');
+        
+        // Decrement source immediately
+        const { error: decErr } = await supabase.from('inventory').update({ quantity: srcItem.quantity - quantity }).eq('id', srcItem.id);
+        if (decErr) throw decErr;
+        // Create sent log as pending
+        const { error: logErr } = await supabase.from('goods_log').insert({
           item_id: formData.itemId,
-          store_from: formData.type === 'sent' ? formData.storeFrom : null,
+          store_from: formData.storeFrom,
           store_to: formData.storeTo,
           quantity,
-          type: formData.type,
-        })
-        .select('*')
-        .maybeSingle();
-
-      if (logErr) throw logErr;
-
-      try {
-        const itemName = srcItem.item_name;
-
-        if (formData.type === 'sent') {
-          // decrement source
-          const { error: decErr } = await supabase
-            .from('inventory')
-            .update({ quantity: (srcItem.quantity || 0) - quantity, last_updated: new Date() })
-            .eq('id', srcItem.id);
-          if (decErr) throw decErr;
-
-          // increment/create target
-          await addToStore(formData.storeTo, itemName, quantity);
+          type: 'sent',
+          status: 'pending'
+        });
+        if (logErr) throw logErr;
+        toast({ title: 'Success', description: 'Transfer sent' });
+      } else {
+        // Received logic
+        const { data: srcItem } = await supabase.from('inventory').select('*').eq('id', formData.itemId).single();
+        
+        // Look up pending sent log
+        const { data: pendingLogs } = await supabase.from('goods_log').select('*')
+          .eq('store_from', formData.storeFrom)
+          .eq('store_to', formData.storeTo)
+          .eq('type', 'sent')
+          .eq('status', 'pending')
+          .eq('item_id', srcItem?.id || formData.itemId)
+          .order('date', { ascending: true });
+        
+        const matchedLog = pendingLogs?.find((l: any) => l.quantity === quantity);
+        
+        if (matchedLog) {
+          // Merged matched log
+          const { error: updErr } = await supabase.from('goods_log').update({ status: 'matched' }).eq('id', matchedLog.id);
+          if (updErr) throw updErr;
+          await addToInventory(formData.storeTo, srcItem?.item_name || 'Unknown', quantity);
+          toast({ title: 'Success', description: 'Transfer matched perfectly!' });
         } else {
-          // received -> only add to destination
-          await addToStore(formData.storeTo, itemName, quantity);
+          // Mismatched
+          if (pendingLogs && pendingLogs.length > 0) {
+            const { error: err1 } = await supabase.from('goods_log').update({ status: 'error' }).eq('id', pendingLogs[0].id);
+            if (err1) throw err1;
+          }
+          const { error: err2 } = await supabase.from('goods_log').insert({
+            item_id: formData.itemId,
+            store_from: formData.storeFrom,
+            store_to: formData.storeTo,
+            quantity,
+            type: 'received',
+            status: 'error'
+          });
+          if (err2) throw err2;
+          await addToInventory(formData.storeTo, srcItem?.item_name || 'Unknown', quantity);
+          toast({ title: 'Error flagged', description: 'Quantity mismatch - flagged for owner review', variant: 'destructive' });
         }
-      } catch (invErr) {
-        // Rollback goods_log
-        if (insertedLog && insertedLog.id) {
-          await supabase.from('goods_log').delete().eq('id', insertedLog.id);
-        }
-        throw invErr;
       }
-
-      toast({
-        title: 'Success',
-        description: 'Goods log added and inventory updated',
-      });
 
       queryClient.invalidateQueries({ queryKey: ['/api/goods-logs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
@@ -769,22 +775,35 @@ function AddInvoiceDialog({ stores, inventory }: { stores: Store[]; inventory: a
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('invoices').insert({
+      // Create invoice
+      const { error: invErr } = await supabase.from('invoices').insert({
         store_id: formData.storeId,
         item_id: formData.itemId,
         amount: parseInt(formData.amount),
         supplier_name: formData.supplierName,
         type: formData.type,
       });
+      if (invErr) throw invErr;
 
-      if (error) throw error;
+      // Fetch the item
+      const { data: itemData, error: itemErr } = await supabase.from('inventory').select('*').eq('id', formData.itemId).single();
+      if (itemErr) throw itemErr;
+      
+      // Update inventory (Sale = -1, Purchase = +1)
+      const quantityDiff = formData.type === 'purchase' ? 1 : -1;
+      
+      if (itemData) {
+        const { error: updErr } = await supabase.from('inventory').update({ quantity: (itemData.quantity || 0) + quantityDiff }).eq('id', formData.itemId);
+        if (updErr) throw updErr;
+      }
 
       toast({
         title: "Success",
-        description: "Invoice added successfully",
+        description: "Invoice added and inventory updated",
       });
 
       queryClient.invalidateQueries({ queryKey: ['/api/invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
       setOpen(false);
       setFormData({ storeId: '', itemId: '', amount: '', supplierName: '', type: 'purchase' });
     } catch (error: any) {

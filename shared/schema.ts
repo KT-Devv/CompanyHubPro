@@ -8,6 +8,7 @@ export const userRoleEnum = pgEnum("user_role", ["owner", "hr", "project_manager
 export const workerTypeEnum = pgEnum("worker_type", ["office", "grounds"]);
 export const attendanceStatusEnum = pgEnum("attendance_status", ["Present", "Absent", "Leave", "Half Day"]);
 export const goodsLogTypeEnum = pgEnum("goods_log_type", ["sent", "received"]);
+export const goodsLogStatusEnum = pgEnum("goods_log_status", ["pending", "matched", "error"]);
 export const invoiceTypeEnum = pgEnum("invoice_type", ["purchase", "sale"]);
 
 // Users table (profile data for Supabase Auth users)
@@ -92,6 +93,8 @@ export const goodsLog = pgTable("goods_log", {
   storeTo: varchar("store_to").references(() => stores.id),
   quantity: integer("quantity").notNull(),
   type: goodsLogTypeEnum("type").notNull(),
+  status: goodsLogStatusEnum("status").default("pending").notNull(),
+  referenceId: varchar("reference_id"),
   date: timestamp("date").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -184,6 +187,7 @@ export const insertGoodsLogSchema = createInsertSchema(goodsLog).omit({
   id: true,
   createdAt: true,
   date: true,
+  status: true,
 });
 
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({

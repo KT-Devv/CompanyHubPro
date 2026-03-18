@@ -12,6 +12,7 @@ import ResetPassword from "@/pages/reset-password";
 import AttendancePage from "@/pages/attendance";
 import AttendanceManagementPage from "@/pages/attendance-management";
 import LogisticsPage from "@/pages/logistics";
+import StoreLogisticsPage from "@/pages/store-logistics";
 import WorkersManagementPage from "@/pages/workers-management";
 import SalariesManagementPage from "@/pages/salaries-management";
 import WelcomeManagement from "@/pages/welcome-management";
@@ -63,6 +64,8 @@ function LoginWrapper() {
       return <Redirect to="/welcome-secretary" />;
     } else if (userRole === 'supervisor') {
       return <Redirect to="/welcome-supervisor" />;
+    } else if (userRole === 'store_manager') {
+      return <Redirect to="/store-logistics" />;
     }
   }
 
@@ -80,6 +83,8 @@ function Router() {
       return <Redirect to="/welcome-secretary" />;
     } else if (userRole === 'supervisor') {
       return <Redirect to="/welcome-supervisor" />;
+    } else if (userRole === 'store_manager') {
+      return <Redirect to="/store-logistics" />;
     }
     return <Redirect to="/attendance" />;
   }
@@ -131,6 +136,12 @@ function Router() {
         <ProtectedRoute 
           component={LogisticsPage} 
           allowedRoles={['owner', 'hr' ]} 
+        />
+      </Route>
+      <Route path="/store-logistics">
+        <ProtectedRoute 
+          component={StoreLogisticsPage} 
+          allowedRoles={['store_manager']} 
         />
       </Route>
       <Route path="/salaries-management">
