@@ -356,9 +356,8 @@ function AddInventoryDialog({ userStoreId }: { userStoreId: string }) {
         if (insErr) throw insErr;
       }
 
-      toast({ title: "Success", description: "Item added" });
+      toast({ title: "Success", description: "Item added. You can add another." });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      setOpen(false);
       setFormData({ itemName: '', quantity: '' });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -497,7 +496,7 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>Type</Label>
-            <Select value={formData.type} onValueChange={(v: any) => setFormData({ ...formData, type: v })} required>
+            <Select value={formData.type} onValueChange={(v: any) => setFormData({ ...formData, type: v, itemId: '', logId: '', otherStoreId: '' })} required>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="sent">Sending Out</SelectItem>
@@ -505,28 +504,50 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>{formData.type === 'sent' ? 'To Store' : 'From Store'}</Label>
-            <Select value={formData.otherStoreId} onValueChange={v => setFormData({ ...formData, otherStoreId: v })} required>
-              <SelectTrigger><SelectValue placeholder="Select store" /></SelectTrigger>
-              <SelectContent>
-                {stores.filter(s => s.id && s.id !== userStoreId).map(store => (
-                  <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Item (from your inventory or reference)</Label>
-            <Select value={formData.itemId} onValueChange={v => setFormData({ ...formData, itemId: v })} required>
-              <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
-              <SelectContent>
-                {inventory.map(item => (
-                  <SelectItem key={item.id} value={item.id}>{item.item_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
+          {formData.type === 'sent' && (
+            <>
+              <div className="space-y-2">
+                <Label>To Store</Label>
+                <Select value={formData.otherStoreId} onValueChange={v => setFormData({ ...formData, otherStoreId: v })} required>
+                  <SelectTrigger><SelectValue placeholder="Select target store" /></SelectTrigger>
+                  <SelectContent>
+                    {stores.filter(s => s.id && s.id !== userStoreId).map(store => (
+                      <SelectItem key={store.id} value={store.id}>{store.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Item to Send</Label>
+                <Select value={formData.itemId} onValueChange={v => setFormData({ ...formData, itemId: v })} required>
+                  <SelectTrigger><SelectValue placeholder="Select from your inventory" /></SelectTrigger>
+                  <SelectContent>
+                    {inventory.filter(item => item.id).map(item => (
+                      <SelectItem key={item.id} value={item.id}>{item.item_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+
+          {formData.type === 'received' && (
+            <div className="space-y-2">
+              <Label>Incoming Transfer</Label>
+              <Select value={formData.logId} onValueChange={v => setFormData({ ...formData, logId: v })} required>
+                <SelectTrigger><SelectValue placeholder="Select incoming shipment" /></SelectTrigger>
+                <SelectContent>
+                  {goodsLogs.filter(log => log.store_to === userStoreId && log.status === 'pending' && log.type === 'sent').map(log => (
+                    <SelectItem key={log.id} value={log.id}>{log.inventory?.item_name || 'Item'} from {log.from_store?.name} (Expected: {log.quantity})</SelectItem>
+                  ))}
+                  {goodsLogs.filter(log => log.store_to === userStoreId && log.status === 'pending' && log.type === 'sent').length === 0 && (
+                    <SelectItem value="none" disabled>No incoming transfers</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Quantity</Label>
             <Input type="number" min="1" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
@@ -575,10 +596,9 @@ function AddInvoiceDialog({ inventory, userStoreId }: { inventory: any[]; userSt
         if (updErr) throw updErr;
       }
 
-      toast({ title: "Success", description: "Invoice added and inventory updated" });
+      toast({ title: "Success", description: "Invoice saved. You can add another." });
       queryClient.invalidateQueries({ queryKey: ['/api/invoices'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      setOpen(false);
       setFormData({ itemId: '', amount: '', supplierName: '', type: 'purchase' });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
