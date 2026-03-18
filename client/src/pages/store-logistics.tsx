@@ -245,28 +245,29 @@ export default function StoreLogisticsPage() {
                     <div key={log.id} className="flex flex-wrap items-center gap-3 p-4 rounded-md border">
                       <div className="flex-1 min-w-[200px]">
                         <p className="font-medium flex items-center gap-2">
-                          {log.inventory?.item_name}
+                          {log.inventory?.item_name || 'Item'}
                           {log.status === 'error' && <AlertCircle className="h-4 w-4 text-destructive" />}
                           {log.status === 'matched' && <CheckCircle className="h-4 w-4 text-green-500" />}
                         </p>
                         <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                           {log.type === 'sent' ? (
                             <>
-                              <Badge variant="outline" className="text-xs">{log.store_from?.name || 'Unknown'}</Badge>
+                              <Badge variant="outline" className="text-xs">{log.from_store?.name || 'Unknown'}</Badge>
                               <ArrowRight className="h-3 w-3" />
-                              <Badge variant="outline" className="text-xs">{log.store_to?.name}</Badge>
+                              <Badge variant="outline" className="text-xs">{log.to_store?.name || 'Unknown'}</Badge>
                             </>
                           ) : (
                             <>
-                              <TrendingUp className="h-3 w-3" />
-                              <Badge variant="outline" className="text-xs">{log.store_to?.name}</Badge>
+                              <TrendingDown className="h-3 w-3" />
+                              <span className="text-xs">Received at</span>
+                              <Badge variant="outline" className="text-xs">{log.to_store?.name || 'Unknown'}</Badge>
                             </>
                           )}
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-mono text-lg font-semibold">{log.quantity}</p>
-                        <Badge variant={log.type === 'sent' ? 'secondary' : 'default'} className="text-xs">
+                        <p className={`font-mono text-lg font-semibold ${log.status === 'error' ? 'text-destructive' : ''}`}>{log.quantity}</p>
+                        <Badge variant={log.type === 'sent' ? 'secondary' : 'default'} className="text-xs uppercase">
                           {log.type}
                         </Badge>
                       </div>

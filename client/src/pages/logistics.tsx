@@ -60,7 +60,7 @@ export default function LogisticsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('goods_log')
-        .select('*, inventory(item_name), store_from:stores!goods_log_store_from_fkey(name), store_to:stores!goods_log_store_to_fkey(name)')
+        .select('*, inventory(item_name), from_store:stores!goods_log_store_from_fkey(id,name), to_store:stores!goods_log_store_to_fkey(id,name)')
         .order('date', { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -302,27 +302,37 @@ export default function LogisticsPage() {
                       <div className="flex-1 min-w-[200px]">
                         <p className="font-medium flex items-center gap-2">
                           {log.inventory?.item_name}
-                          {log.status === 'error' && <AlertCircle className="h-4 w-4 text-destructive" />}
+                          {log.status === 'error' && (
+                            <span 
+                              className="cursor-help" 
+                              title={log.type === 'sent' 
+                                ? "Mismatch: The destination store reported receiving a different quantity." 
+                                : "Mismatch: This received quantity does not match the original sender's log."}
+                            >
+                              <AlertCircle className="h-4 w-4 text-destructive" />
+                            </span>
+                          )}
                           {log.status === 'matched' && <CheckCircle className="h-4 w-4 text-green-500" />}
                         </p>
                         <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                           {log.type === 'sent' ? (
                             <>
-                              <Badge variant="outline" className="text-xs">{log.store_from?.name}</Badge>
+                              <Badge variant="outline" className="text-xs">{log.from_store?.name || 'Unknown'}</Badge>
                               <ArrowRight className="h-3 w-3" />
-                              <Badge variant="outline" className="text-xs">{log.store_to?.name}</Badge>
+                              <Badge variant="outline" className="text-xs">{log.to_store?.name || 'Unknown'}</Badge>
                             </>
                           ) : (
                             <>
-                              <TrendingUp className="h-3 w-3" />
-                              <Badge variant="outline" className="text-xs">{log.store_to?.name}</Badge>
+                              <TrendingDown className="h-3 w-3" />
+                              <span className="text-xs">Received at</span>
+                              <Badge variant="outline" className="text-xs">{log.to_store?.name || 'Unknown'}</Badge>
                             </>
                           )}
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-mono text-lg font-semibold">{log.quantity}</p>
-                        <Badge variant={log.type === 'sent' ? 'secondary' : 'default'} className="text-xs">
+                        <p className={`font-mono text-lg font-semibold ${log.status === 'error' ? 'text-destructive' : ''}`}>{log.quantity}</p>
+                        <Badge variant={log.type === 'sent' ? 'secondary' : 'default'} className="text-xs uppercase">
                           {log.type}
                         </Badge>
                       </div>
@@ -620,6 +630,18 @@ function AddGoodsLogDialog({ stores, inventory }: { stores: Store[]; inventory: 
           // Merged matched log
           const { error: updErr } = await supabase.from('goods_log').update({ status: 'matched' }).eq('id', matchedLog.id);
           if (updErr) throw updErr;
+          
+          const { error: insErr } = await supabase.from('goods_log').insert({
+            item_id: matchedLog.item_id,
+            store_from: matchedLog.store_from,
+            store_to: matchedLog.store_to,
+            quantity,
+            type: 'received',
+            status: 'matched',
+            reference_id: matchedLog.id
+          });
+          if (insErr) throw insErr;
+          
           await addToInventory(formData.storeTo, srcItem?.item_name || 'Unknown', quantity);
           toast({ title: 'Success', description: 'Transfer matched perfectly!' });
         } else {
