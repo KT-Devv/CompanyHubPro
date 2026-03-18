@@ -406,7 +406,6 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
     try {
       const quantity = parseInt(formData.quantity);
       if (isNaN(quantity) || quantity <= 0) throw new Error('Quantity required');
-      if (!formData.otherStoreId) throw new Error('Target store is required');
 
       // Helper for inventory targets
       const addToInventory = async (storeId: string, itemName: string, qty: number) => {
