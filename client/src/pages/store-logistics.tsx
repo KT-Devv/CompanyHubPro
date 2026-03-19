@@ -68,23 +68,7 @@ export default function StoreLogisticsPage() {
     refetchInterval: 7000,
   });
 
-  // Fetch invoices for THIS store
-  const { data: invoices, isLoading: loadingInvoices } = useQuery({
-    queryKey: ['/api/invoices', userStoreId],
-    queryFn: async () => {
-      if (!userStoreId) return [];
-      const { data, error } = await supabase
-        .from('invoices')
-        .select('*, stores(name), inventory(item_name)')
-        .eq('store_id', userStoreId)
-        .order('date', { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data as any[];
-    },
-    enabled: !!userStoreId,
-    refetchInterval: 10000,
-  });
+
 
   const filteredInventory = inventory?.filter((item) =>
     item.item_name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -120,7 +104,7 @@ export default function StoreLogisticsPage() {
             <>
               <AddInventoryDialog userStoreId={userStoreId} />
               <AddGoodsLogDialog stores={stores || []} inventory={inventory || []} userStoreId={userStoreId} goodsLogs={goodsLogs || []} />
-              <AddInvoiceDialog inventory={inventory || []} userStoreId={userStoreId} />
+
             </>
           )}
         </div>
@@ -177,7 +161,7 @@ export default function StoreLogisticsPage() {
         <TabsList>
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
           <TabsTrigger value="goods">Goods Movement</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices</TabsTrigger>
+
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-4">
@@ -284,45 +268,7 @@ export default function StoreLogisticsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="invoices" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Invoices</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!invoices || invoices.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">No invoices</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-3 px-4 text-xs uppercase text-muted-foreground">Item</th>
-                        <th className="text-left py-3 px-4 text-xs uppercase text-muted-foreground">Supplier</th>
-                        <th className="text-left py-3 px-4 text-xs uppercase text-muted-foreground">Type</th>
-                        <th className="text-right py-3 px-4 text-xs uppercase text-muted-foreground">Amount</th>
-                        <th className="text-left py-3 px-4 text-xs uppercase text-muted-foreground">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {invoices.map((invoice, idx) => (
-                        <tr key={invoice.id} className={idx % 2 === 0 ? 'bg-muted/30' : ''}>
-                          <td className="py-3 px-4">{invoice.inventory?.item_name}</td>
-                          <td className="py-3 px-4">{invoice.supplier_name}</td>
-                          <td className="py-3 px-4">
-                            <Badge variant={invoice.type === 'purchase' ? 'secondary' : 'default'}>{invoice.type}</Badge>
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono">${invoice.amount.toLocaleString()}</td>
-                          <td className="py-3 px-4 text-xs text-muted-foreground">{format(new Date(invoice.date), 'MMM dd, yyyy')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+
       </Tabs>
     </div>
   );
@@ -555,105 +501,6 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={loading}>Log Transfer</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// Add Invoice
-function AddInvoiceDialog({ inventory, userStoreId }: { inventory: any[]; userStoreId: string }) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ itemId: '', amount: '', quantity: '', supplierName: '', type: 'purchase' as 'purchase' | 'sale' });
-  const { toast } = useToast();
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      // Create invoice
-      const { error: invErr } = await supabase.from('invoices').insert({
-        store_id: userStoreId,
-        item_id: formData.itemId,
-        amount: parseInt(formData.amount),
-        supplier_name: formData.supplierName,
-        type: formData.type,
-      });
-      if (invErr) throw invErr;
-
-      // Fetch the item
-      const { data: itemData, error: itemErr } = await supabase.from('inventory').select('*').eq('id', formData.itemId).single();
-      if (itemErr) throw itemErr;
-      
-      // Update inventory (Sale = -, Purchase = +)
-      const quantityDiff = formData.type === 'purchase' ? parseInt(formData.amount) : -parseInt(formData.amount);
-      
-      if (itemData) {
-        const newQty = (itemData.quantity || 0) + quantityDiff;
-        if (newQty < 0) throw new Error('Insufficient inventory for this sale invoice');
-        
-        const { error: updErr } = await supabase.from('inventory').update({ quantity: newQty }).eq('id', formData.itemId);
-        if (updErr) throw updErr;
-      }
-
-      toast({ title: "Success", description: "Invoice saved. You can add another." });
-      queryClient.invalidateQueries({ queryKey: ['/api/invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      setFormData({ itemId: '', amount: '', quantity: '', supplierName: '', type: 'purchase' });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm"><FileText className="h-4 w-4 mr-2" />Add Invoice</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Add Invoice</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Type</Label>
-            <Select value={formData.type} onValueChange={(v: any) => setFormData({ ...formData, type: v })} required>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="purchase">Purchase (+1 Stock)</SelectItem>
-                <SelectItem value="sale">Sale (-1 Stock)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Item</Label>
-            <Select value={formData.itemId} onValueChange={v => setFormData({ ...formData, itemId: v })} required>
-              <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
-              <SelectContent>
-                {inventory.map(item => (
-                  <SelectItem key={item.id} value={item.id}>{item.item_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Supplier/Customer Name</Label>
-            <Input value={formData.supplierName} onChange={e => setFormData({ ...formData, supplierName: e.target.value })} required />
-          </div>
-          <div className="space-y-2">
-            <Label>Quantity Added/Removed</Label>
-            <Input type="number" min="1" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
-          </div>
-          <div className="space-y-2">
-            <Label>Total Value / Amount (GH₵)</Label>
-            <Input type="number" min="0" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} required />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button type="submit" disabled={loading}>Add Invoice</Button>
           </DialogFooter>
         </form>
       </DialogContent>
