@@ -105,6 +105,7 @@ export const invoices = pgTable("invoices", {
   storeId: varchar("store_id").references(() => stores.id).notNull(),
   itemId: varchar("item_id").references(() => inventory.id).notNull(),
   amount: integer("amount").notNull(),
+  quantity: integer("quantity").notNull().default(1),
   supplierName: text("supplier_name").notNull(),
   type: invoiceTypeEnum("type").notNull(),
   date: timestamp("date").defaultNow().notNull(),

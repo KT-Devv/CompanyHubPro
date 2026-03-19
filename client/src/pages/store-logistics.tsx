@@ -566,7 +566,7 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
 function AddInvoiceDialog({ inventory, userStoreId }: { inventory: any[]; userStoreId: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ itemId: '', amount: '', supplierName: '', type: 'purchase' as 'purchase' | 'sale' });
+  const [formData, setFormData] = useState({ itemId: '', amount: '', quantity: '', supplierName: '', type: 'purchase' as 'purchase' | 'sale' });
   const { toast } = useToast();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -588,18 +588,21 @@ function AddInvoiceDialog({ inventory, userStoreId }: { inventory: any[]; userSt
       const { data: itemData, error: itemErr } = await supabase.from('inventory').select('*').eq('id', formData.itemId).single();
       if (itemErr) throw itemErr;
       
-      // Update inventory (Sale = -1, Purchase = +1)
-      const quantityDiff = formData.type === 'purchase' ? 1 : -1;
+      // Update inventory (Sale = -, Purchase = +)
+      const quantityDiff = formData.type === 'purchase' ? parseInt(formData.amount) : -parseInt(formData.amount);
       
       if (itemData) {
-        const { error: updErr } = await supabase.from('inventory').update({ quantity: (itemData.quantity || 0) + quantityDiff }).eq('id', formData.itemId);
+        const newQty = (itemData.quantity || 0) + quantityDiff;
+        if (newQty < 0) throw new Error('Insufficient inventory for this sale invoice');
+        
+        const { error: updErr } = await supabase.from('inventory').update({ quantity: newQty }).eq('id', formData.itemId);
         if (updErr) throw updErr;
       }
 
       toast({ title: "Success", description: "Invoice saved. You can add another." });
       queryClient.invalidateQueries({ queryKey: ['/api/invoices'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      setFormData({ itemId: '', amount: '', supplierName: '', type: 'purchase' });
+      setFormData({ itemId: '', amount: '', quantity: '', supplierName: '', type: 'purchase' });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -641,7 +644,11 @@ function AddInvoiceDialog({ inventory, userStoreId }: { inventory: any[]; userSt
             <Input value={formData.supplierName} onChange={e => setFormData({ ...formData, supplierName: e.target.value })} required />
           </div>
           <div className="space-y-2">
-            <Label>Amount ($)</Label>
+            <Label>Quantity Added/Removed</Label>
+            <Input type="number" min="1" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
+          </div>
+          <div className="space-y-2">
+            <Label>Total Value / Amount (GH₵)</Label>
             <Input type="number" min="0" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} required />
           </div>
           <DialogFooter>
