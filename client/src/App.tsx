@@ -15,6 +15,8 @@ import LogisticsPage from "@/pages/logistics";
 import StoreLogisticsPage from "@/pages/store-logistics";
 import WorkersManagementPage from "@/pages/workers-management";
 import SalariesManagementPage from "@/pages/salaries-management";
+import FinancePage from "@/pages/finance";
+import SystemManagementPage from "@/pages/system-management";
 import WelcomeManagement from "@/pages/welcome-management";
 import WelcomeSecretary from "@/pages/welcome-secretary";
 import WelcomeSupervisor from "@/pages/welcome-supervisor";
@@ -58,13 +60,13 @@ function LoginWrapper() {
 
   // If already logged in, redirect based on role
   if (user) {
-    if (userRole === 'owner' || userRole === 'hr' || userRole === 'project_manager') {
+    if (['owner', 'ceo', 'hr', 'project_manager', 'system_manager', 'finance'].includes(userRole || '')) {
       return <Redirect to="/welcome-management" />;
     } else if (userRole === 'secretary') {
       return <Redirect to="/welcome-secretary" />;
     } else if (userRole === 'supervisor') {
       return <Redirect to="/welcome-supervisor" />;
-    } else if (userRole === 'store_manager') {
+    } else if (userRole === 'store_manager' || userRole === 'logistics_manager') {
       return <Redirect to="/store-logistics" />;
     }
   }
@@ -77,13 +79,13 @@ function Router() {
 
   // Redirect based on role
   function RoleBasedRedirect() {
-    if (userRole === 'owner' || userRole === 'hr' || userRole === 'project_manager') {
+    if (['owner', 'ceo', 'hr', 'project_manager', 'system_manager', 'finance'].includes(userRole || '')) {
       return <Redirect to="/welcome-management" />;
     } else if (userRole === 'secretary') {
       return <Redirect to="/welcome-secretary" />;
     } else if (userRole === 'supervisor') {
       return <Redirect to="/welcome-supervisor" />;
-    } else if (userRole === 'store_manager') {
+    } else if (userRole === 'store_manager' || userRole === 'logistics_manager') {
       return <Redirect to="/store-logistics" />;
     }
     return <Redirect to="/attendance" />;
@@ -91,63 +93,79 @@ function Router() {
 
   return (
     <Switch>
-    <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/login" component={LoginWrapper} />
       <Route path="/">
         {user ? <RoleBasedRedirect /> : <Redirect to="/login" />}
       </Route>
       <Route path="/welcome-management">
-        <ProtectedRoute 
-          component={WelcomeManagement} 
-          allowedRoles={['owner', 'hr', 'project_manager']} 
+        <ProtectedRoute
+          component={WelcomeManagement}
+          allowedRoles={['owner', 'ceo', 'hr', 'project_manager', 'system_manager', 'finance']}
         />
       </Route>
       <Route path="/welcome-secretary">
-        <ProtectedRoute 
-          component={WelcomeSecretary} 
-          allowedRoles={['secretary']} 
+        <ProtectedRoute
+          component={WelcomeSecretary}
+          allowedRoles={['secretary']}
         />
       </Route>
       <Route path="/welcome-supervisor">
-        <ProtectedRoute 
-          component={WelcomeSupervisor} 
-          allowedRoles={['supervisor']} 
+        <ProtectedRoute
+          component={WelcomeSupervisor}
+          allowedRoles={['supervisor']}
         />
       </Route>
       <Route path="/attendance">
-        <ProtectedRoute 
-          component={AttendancePage} 
-          allowedRoles={['supervisor', 'secretary']} 
+        <ProtectedRoute
+          component={AttendancePage}
+          // Supervisors, secretaries, and store_managers mark attendance
+          allowedRoles={['supervisor', 'secretary', 'store_manager']}
         />
       </Route>
       <Route path="/attendance-management">
-        <ProtectedRoute 
-          component={AttendanceManagementPage} 
-          allowedRoles={['owner', 'hr', 'project_manager']} 
+        <ProtectedRoute
+          component={AttendanceManagementPage}
+          allowedRoles={['owner', 'ceo', 'hr', 'project_manager', 'system_manager']}
         />
       </Route>
       <Route path="/workers-management">
-        <ProtectedRoute 
-          component={WorkersManagementPage} 
-          allowedRoles={['owner', 'hr']} 
+        <ProtectedRoute
+          component={WorkersManagementPage}
+          allowedRoles={['owner', 'ceo', 'hr', 'system_manager', 'project_manager']}
         />
       </Route>
       <Route path="/logistics">
-        <ProtectedRoute 
-          component={LogisticsPage} 
-          allowedRoles={['owner', 'hr' ]} 
+        <ProtectedRoute
+          component={LogisticsPage}
+          allowedRoles={['owner', 'ceo', 'hr', 'system_manager', 'logistics_manager', 'project_manager']}
         />
       </Route>
       <Route path="/store-logistics">
-        <ProtectedRoute 
-          component={StoreLogisticsPage} 
-          allowedRoles={['store_manager']} 
+        <ProtectedRoute
+          component={StoreLogisticsPage}
+          allowedRoles={['store_manager', 'logistics_manager']}
         />
       </Route>
       <Route path="/salaries-management">
-        <ProtectedRoute 
-          component={SalariesManagementPage} 
-          allowedRoles={['owner', 'hr', 'project_manager']} 
+        <ProtectedRoute
+          component={SalariesManagementPage}
+          // Salaries logic left intact for older roles, wait, Finance Officer gets /finance, but maybe we rename /salaries-management to /finance or just use the same page?
+          // I'll leave the old one as it was, and create /finance for Finance portal, or repurpose this. 
+          // actually, the user said "create a new portal for the finance officer". So we'll limit old one or redirect.
+          allowedRoles={['owner', 'ceo', 'hr']}
+        />
+      </Route>
+      <Route path="/finance">
+        <ProtectedRoute
+          component={FinancePage}
+          allowedRoles={['owner', 'ceo', 'hr', 'system_manager', 'finance']}
+        />
+      </Route>
+      <Route path="/system-management">
+        <ProtectedRoute
+          component={SystemManagementPage}
+          allowedRoles={['owner', 'ceo', 'hr', 'system_manager']}
         />
       </Route>
       <Route component={NotFound} />

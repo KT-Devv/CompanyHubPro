@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
 import { Package, TrendingUp, TrendingDown, ArrowRight, Plus, FileText, Search, AlertCircle, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryClient } from '@/lib/queryClient';
@@ -196,7 +197,10 @@ export default function StoreLogisticsPage() {
                     <tbody>
                       {filteredInventory.map((item, idx) => (
                         <tr key={item.id} className={idx % 2 === 0 ? 'bg-muted/30' : ''}>
-                          <td className="py-3 px-4 font-medium">{item.item_name}</td>
+                          <td className="py-3 px-4 font-medium">
+                            {item.item_name}
+                            {item.remarks && <p className="text-xs text-muted-foreground mt-1 max-w-[200px] truncate" title={item.remarks}>{item.remarks}</p>}
+                          </td>
                           <td className="py-3 px-4 text-right font-mono">
                             <span className={item.quantity < 10 ? 'text-destructive font-semibold' : ''}>
                               {item.quantity}
@@ -260,6 +264,11 @@ export default function StoreLogisticsPage() {
                           {format(new Date(log.date), 'MMM dd, yyyy')}
                         </p>
                       </div>
+                      {log.remarks && (
+                        <div className="w-full basis-full mt-2 text-sm text-muted-foreground border-t pt-2 border-border/50">
+                          <span className="font-semibold text-foreground/70">Remarks:</span> {log.remarks}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -278,7 +287,7 @@ export default function StoreLogisticsPage() {
 function AddInventoryDialog({ userStoreId }: { userStoreId: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ itemName: '', quantity: '' });
+  const [formData, setFormData] = useState({ itemName: '', quantity: '', remarks: '' });
   const { toast } = useToast();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -298,14 +307,15 @@ function AddInventoryDialog({ userStoreId }: { userStoreId: string }) {
         const { error: insErr } = await supabase.from('inventory').insert({
           store_id: userStoreId,
           item_name: formData.itemName,
-          quantity: parseInt(formData.quantity)
+          quantity: parseInt(formData.quantity),
+          remarks: formData.remarks || null
         });
         if (insErr) throw insErr;
       }
 
       toast({ title: "Success", description: "Item added. You can add another." });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      setFormData({ itemName: '', quantity: '' });
+      setFormData({ itemName: '', quantity: '', remarks: '' });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -329,6 +339,15 @@ function AddInventoryDialog({ userStoreId }: { userStoreId: string }) {
             <Label>Quantity</Label>
             <Input type="number" min="0" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
           </div>
+          <div className="space-y-2">
+            <Label>Remarks (Optional)</Label>
+            <Textarea 
+              value={formData.remarks} 
+              onChange={e => setFormData({ ...formData, remarks: e.target.value })} 
+              placeholder="Any additional notes..."
+              rows={2}
+            />
+          </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={loading}>Add</Button>
@@ -343,7 +362,7 @@ function AddInventoryDialog({ userStoreId }: { userStoreId: string }) {
 function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stores: Store[]; inventory: any[]; userStoreId: string; goodsLogs: any[] }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ itemId: '', otherStoreId: '', quantity: '', logId: '', type: 'sent' as 'sent' | 'received' });
+  const [formData, setFormData] = useState({ itemId: '', otherStoreId: '', quantity: '', logId: '', type: 'sent' as 'sent' | 'received', remarks: '' });
   const { toast } = useToast();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -385,7 +404,8 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
           store_to: formData.otherStoreId,
           quantity,
           type: 'sent',
-          status: 'pending'
+          status: 'pending',
+          remarks: formData.remarks || null
         });
         if (logErr) throw logErr;
         toast({ title: 'Success', description: 'Transfer sent' });
@@ -412,7 +432,8 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
             quantity,
             type: 'received',
             status: 'error',
-            reference_id: pendingLog.id
+            reference_id: pendingLog.id,
+            remarks: formData.remarks || null
           });
           if (err2) throw err2;
           await addToInventory(userStoreId, pendingLog.inventory?.item_name || 'Unknown', quantity);
@@ -422,7 +443,7 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
 
       queryClient.invalidateQueries({ queryKey: ['/api/goods-logs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      setFormData({ ...formData, quantity: '' });
+      setFormData({ ...formData, quantity: '', remarks: '' });
       // Keep modal open so they can add another (batch adding feature equivalent)
       toast({ title: "Success", description: "Saved. You can log another if needed." });
     } catch (error: any) {
@@ -497,6 +518,15 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
           <div className="space-y-2">
             <Label>Quantity</Label>
             <Input type="number" min="1" value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
+          </div>
+          <div className="space-y-2">
+            <Label>Remarks (Optional)</Label>
+            <Textarea 
+              value={formData.remarks} 
+              onChange={e => setFormData({ ...formData, remarks: e.target.value })} 
+              placeholder="Any additional notes..."
+              rows={2}
+            />
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>

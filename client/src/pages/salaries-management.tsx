@@ -10,8 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from '@/hooks/use-toast';
-import { DollarSign, Search, Calendar, Calculator, Plus, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { cn } from "@/lib/utils";
+import { DollarSign, Search, Calendar, Calculator, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, Check, ChevronsUpDown } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isSameMonth, isSameYear, getDaysInMonth } from 'date-fns';
 import type { Worker } from '@shared/schema';
 
@@ -614,6 +617,7 @@ function AddAdvanceForm({ workers, selectedMonth, onSubmit }: { workers: any[]; 
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState('');
+  const [workerOpen, setWorkerOpen] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -627,18 +631,47 @@ function AddAdvanceForm({ workers, selectedMonth, onSubmit }: { workers: any[]; 
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="worker">Worker</Label>
-        <Select value={workerId} onValueChange={setWorkerId} required>
-          <SelectTrigger>
-            <SelectValue placeholder="Select worker" />
-          </SelectTrigger>
-          <SelectContent>
-            {workers.map((worker) => (
-              <SelectItem key={worker.id} value={worker.id}>
-                {worker.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={workerOpen} onOpenChange={setWorkerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={workerOpen}
+              className="w-full justify-between mt-1 text-left font-normal"
+            >
+              {workerId ? workers.find((w) => w.id === workerId)?.name : "Select worker..."}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[300px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search worker..." />
+              <CommandList>
+                <CommandEmpty>No worker found.</CommandEmpty>
+                <CommandGroup className="max-h-[200px] overflow-y-auto">
+                  {workers.map((worker) => (
+                    <CommandItem
+                      key={worker.id}
+                      value={worker.name}
+                      onSelect={() => {
+                        setWorkerId(worker.id);
+                        setWorkerOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          workerId === worker.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {worker.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
       <div>
         <Label htmlFor="amount">Amount (₵)</Label>
@@ -680,6 +713,7 @@ function AddLoanForm({ workers, selectedMonth, onSubmit }: { workers: any[]; sel
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [notes, setNotes] = useState('');
+  const [workerOpen, setWorkerOpen] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -693,18 +727,47 @@ function AddLoanForm({ workers, selectedMonth, onSubmit }: { workers: any[]; sel
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="worker">Worker</Label>
-        <Select value={workerId} onValueChange={setWorkerId} required>
-          <SelectTrigger>
-            <SelectValue placeholder="Select worker" />
-          </SelectTrigger>
-          <SelectContent>
-            {workers.map((worker) => (
-              <SelectItem key={worker.id} value={worker.id}>
-                {worker.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={workerOpen} onOpenChange={setWorkerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={workerOpen}
+              className="w-full justify-between mt-1 text-left font-normal"
+            >
+              {workerId ? workers.find((w) => w.id === workerId)?.name : "Select worker..."}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[300px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search worker..." />
+              <CommandList>
+                <CommandEmpty>No worker found.</CommandEmpty>
+                <CommandGroup className="max-h-[200px] overflow-y-auto">
+                  {workers.map((worker) => (
+                    <CommandItem
+                      key={worker.id}
+                      value={worker.name}
+                      onSelect={() => {
+                        setWorkerId(worker.id);
+                        setWorkerOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          workerId === worker.id ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {worker.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
       <div>
         <Label htmlFor="amount">Amount (₵)</Label>

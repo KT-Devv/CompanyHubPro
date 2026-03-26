@@ -26,9 +26,10 @@ export function AppSidebar() {
   const { userRole, signOut, user, userFullName } = useAuth();
   const [location, setLocation] = useLocation();
 
-  const canAccessAttendance = ['owner', 'hr', 'project_manager', 'supervisor', 'secretary'].includes(userRole || '');
-  const canAccessLogistics = ['owner', 'hr', 'project_manager'].includes(userRole || '');
-  const isManagement = ['owner', 'hr', 'project_manager'].includes(userRole || '');
+  const canAccessAttendance = ['owner', 'ceo', 'hr', 'project_manager', 'supervisor', 'secretary', 'store_manager', 'logistics_manager', 'system_manager', 'finance'].includes(userRole || '');
+  const canAccessLogistics = ['owner', 'ceo', 'hr', 'project_manager', 'system_manager', 'logistics_manager'].includes(userRole || '');
+  const isManagement = ['owner', 'ceo', 'hr', 'project_manager', 'system_manager'].includes(userRole || '');
+  const isFinance = userRole === 'finance' || isManagement;
 
   const menuItems = [
     ...(isManagement
@@ -49,11 +50,11 @@ export function AppSidebar() {
           },
         ]
       : []),
-    ...(isManagement
+    ...(isFinance
       ? [
           {
-            title: 'Salaries',
-            url: '/salaries-management',
+            title: 'Finance',
+            url: '/finance',
             icon: DollarSign,
           },
         ]
@@ -64,6 +65,15 @@ export function AppSidebar() {
             title: 'Logistics',
             url: '/logistics',
             icon: Package,
+          },
+        ]
+      : []),
+    ...(userRole === 'system_manager'
+      ? [
+          {
+            title: 'System Management',
+            url: '/system-management',
+            icon: Building2,
           },
         ]
       : []),

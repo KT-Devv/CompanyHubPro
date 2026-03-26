@@ -433,6 +433,24 @@ export default function AttendancePage() {
           )}
         </div>
       </div>
+      
+      {isSupervisor && !userSiteId && (
+        <Alert variant="destructive" className="border-2 shadow-sm animate-in fade-in slide-in-from-top-2">
+          <AlertCircle className="h-5 w-5" />
+          <AlertDescription className="ml-2 font-semibold">
+            Warning: Your account is currently NOT assigned to any site. You will not see any workers to mark attendance for until an administrator assigns a site to your profile.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isSupervisor && userSiteId && filteredWorkers.length === 0 && !loadingWorkers && (
+        <Alert variant="destructive" className="border-2 shadow-sm animate-in fade-in slide-in-from-top-2">
+          <AlertCircle className="h-5 w-5" />
+          <AlertDescription className="ml-2 font-semibold">
+            Warning: Your assigned site currently has no workers attached to it. Please assign workers to this site first.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="border border-gray-200 shadow-sm bg-white">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 space-y-0 pb-4 bg-white border-b border-gray-100">

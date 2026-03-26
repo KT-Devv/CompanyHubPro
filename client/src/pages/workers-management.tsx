@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -16,8 +17,11 @@ import { useToast } from '@/hooks/use-toast';
 export default function WorkersManagementPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { userRole } = useAuth();
+  const isReadOnly = userRole === 'ceo';
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [filterSite, setFilterSite] = useState('all');
   const [editWorker, setEditWorker] = useState<any | null>(null);
   const [viewWorker, setViewWorker] = useState<any | null>(null);
   const [openAdd, setOpenAdd] = useState(false);
@@ -66,7 +70,7 @@ export default function WorkersManagementPage() {
     queryFn: async () => {
       const { data: workersData, error: workersError } = await supabase
         .from('workers')
-        .select('*, portfolios(portfolio_name, rate), positions(position_name, rate), sites(site_name, id)')
+        .select('*, portfolios(portfolio_name, rate), positions(position_name, rate), sites!site_id(site_name, id), account_site:sites!account_location(site_name, id)')
         .order('name');
       if (workersError) throw workersError;
       
@@ -128,7 +132,8 @@ export default function WorkersManagementPage() {
     const filtered = list.filter((w: any) => {
       const matchesSearch = (w.name || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType = filterType === 'all' || w.worker_type === filterType;
-      return matchesSearch && matchesType;
+      const matchesSite = filterSite === 'all' || w.site_id === filterSite;
+      return matchesSearch && matchesType && matchesSite;
     });
 
     // Sort the filtered list
@@ -142,10 +147,10 @@ export default function WorkersManagementPage() {
           bValue = (b.name || '').toLowerCase();
           break;
         case 'portfolio':
-          aValue = a.worker_type === 'grounds' 
+          aValue = a.worker_type === 'casual' 
             ? (a.portfolios?.portfolio_name || '').toLowerCase()
             : (a.positions?.position_name || '').toLowerCase();
-          bValue = b.worker_type === 'grounds'
+          bValue = b.worker_type === 'casual'
             ? (b.portfolios?.portfolio_name || '').toLowerCase()
             : (b.positions?.position_name || '').toLowerCase();
           break;
@@ -157,6 +162,7 @@ export default function WorkersManagementPage() {
           aValue = (a.phone_number || '').toLowerCase();
           bValue = (b.phone_number || '').toLowerCase();
           break;
+
         default:
           return 0;
       }
@@ -167,7 +173,7 @@ export default function WorkersManagementPage() {
     });
 
     return sorted;
-  }, [workers, searchQuery, filterType, sortColumn, sortDirection]);
+  }, [workers, searchQuery, filterType, filterSite, sortColumn, sortDirection]);
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -209,31 +215,35 @@ export default function WorkersManagementPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 text-muted-foreground">
+          <div className="flex items-center gap-2 text-muted-foreground mr-2">
             <Users className="h-4 w-4 sm:h-5 sm:w-5" />
-            <span className="text-xs sm:text-sm">{filteredAndSortedWorkers.length} total</span>
+            <span className={userRole === 'ceo' ? "text-lg sm:text-xl font-bold text-foreground" : "text-xs sm:text-sm"}>
+              {filteredAndSortedWorkers.length} total
+            </span>
           </div>
-          <Dialog open={openAdd} onOpenChange={setOpenAdd}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline" data-testid="button-add-worker">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Worker
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-[95vw] sm:max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Add Worker</DialogTitle>
-                <DialogDescription>Create a new worker</DialogDescription>
-              </DialogHeader>
-              <WorkerForm
-                portfolios={portfolios || []}
-                positions={positions || []}
-                sites={sites || []}
-                onSubmit={(payload) => addWorkerMutation.mutate(payload)}
-                onCancel={() => setOpenAdd(false)}
-              />
-            </DialogContent>
-          </Dialog>
+          {!isReadOnly && (
+            <Dialog open={openAdd} onOpenChange={setOpenAdd}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" data-testid="button-add-worker">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Worker
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Add Worker</DialogTitle>
+                  <DialogDescription>Create a new worker</DialogDescription>
+                </DialogHeader>
+                <WorkerForm
+                  portfolios={portfolios || []}
+                  positions={positions || []}
+                  sites={sites || []}
+                  onSubmit={(payload) => addWorkerMutation.mutate(payload)}
+                  onCancel={() => setOpenAdd(false)}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
@@ -262,8 +272,19 @@ export default function WorkersManagementPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="grounds">Grounds</SelectItem>
-                <SelectItem value="office">Office</SelectItem>
+                <SelectItem value="casual">Casual</SelectItem>
+                <SelectItem value="non-marking">Non-Marking</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterSite} onValueChange={setFilterSite}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Site" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sites</SelectItem>
+                {sites?.map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>{s.site_name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -294,6 +315,7 @@ export default function WorkersManagementPage() {
                       <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         <SortButton column="phone">Phone Number</SortButton>
                       </th>
+
                       <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">Actions</th>
                     </tr>
                   </thead>
@@ -306,12 +328,13 @@ export default function WorkersManagementPage() {
                       >
                         <td className="py-3 px-4 text-sm font-medium">{w.name || '-'}</td>
                         <td className="py-3 px-4 text-sm">
-                          {w.worker_type === 'grounds' ? (w.portfolios?.portfolio_name || '-') : (w.positions?.position_name || '-')}
+                          {w.worker_type === 'casual' ? (w.portfolios?.portfolio_name || '-') : (w.positions?.position_name || '-')}
                         </td>
                         <td className="py-3 px-4 text-sm">
                           {w.sites?.site_name || '-'}
                         </td>
                         <td className="py-3 px-4 text-sm">{w.phone_number || '-'}</td>
+
                         <td className="py-3 px-4">
                           <div className="flex justify-end gap-2">
                             <Dialog open={!!viewWorker && viewWorker?.id === w.id} onOpenChange={(open) => setViewWorker(open ? w : null)}>
@@ -329,42 +352,46 @@ export default function WorkersManagementPage() {
                                 <DialogFooter>
                                   <Button variant="outline" onClick={() => setViewWorker(null)}>Close</Button>
                                 </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
-                            <Dialog open={!!editWorker && editWorker?.id === w.id} onOpenChange={(open) => setEditWorker(open ? w : null)}>
-                              <DialogTrigger asChild>
-                                <Button size="sm" variant="outline" className="transition-all hover:scale-105" data-testid={`button-edit-${w.id}`}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-[95vw] sm:max-w-lg">
-                                <DialogHeader>
-                                  <DialogTitle>Edit Worker</DialogTitle>
-                                  <DialogDescription>Update worker details</DialogDescription>
-                                </DialogHeader>
-                                <WorkerForm
-                                  initial={w}
-                                  portfolios={portfolios || []}
-                                  positions={positions || []}
-                                  sites={sites || []}
-                                  onSubmit={(payload) => updateWorkerMutation.mutate({ id: w.id, updates: payload })}
-                                  onCancel={() => setEditWorker(null)}
-                                />
-                              </DialogContent>
-                            </Dialog>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="transition-all hover:scale-105 hover:text-destructive"
-                              data-testid={`button-delete-${w.id}`}
-                              onClick={() => {
-                                if (confirm(`Delete ${w.name}? This cannot be undone.`)) {
-                                  deleteWorkerMutation.mutate(w.id);
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                                </DialogContent>
+                              </Dialog>
+                            {!isReadOnly && (
+                              <Dialog open={!!editWorker && editWorker?.id === w.id} onOpenChange={(open) => setEditWorker(open ? w : null)}>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" variant="outline" className="transition-all hover:scale-105" data-testid={`button-edit-${w.id}`}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
+                                  <DialogHeader>
+                                    <DialogTitle>Edit Worker</DialogTitle>
+                                    <DialogDescription>Update worker details</DialogDescription>
+                                  </DialogHeader>
+                                  <WorkerForm
+                                    initial={w}
+                                    portfolios={portfolios || []}
+                                    positions={positions || []}
+                                    sites={sites || []}
+                                    onSubmit={(payload) => updateWorkerMutation.mutate({ id: w.id, updates: payload })}
+                                    onCancel={() => setEditWorker(null)}
+                                  />
+                                </DialogContent>
+                              </Dialog>
+                            )}
+                            {!isReadOnly && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="transition-all hover:scale-105 hover:text-destructive"
+                                data-testid={`button-delete-${w.id}`}
+                                onClick={() => {
+                                  if (confirm(`Delete ${w.name}? This cannot be undone.`)) {
+                                    deleteWorkerMutation.mutate(w.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -398,7 +425,7 @@ function WorkerDetailsView({ worker }: { worker: any }) {
         <div>
           <Label className="text-muted-foreground">Portfolio/Position</Label>
           <p className="text-sm font-medium mt-1">
-            {worker.worker_type === 'grounds' 
+            {worker.worker_type === 'casual' 
               ? (worker.portfolios?.portfolio_name || '-')
               : (worker.positions?.position_name || '-')}
           </p>
@@ -406,7 +433,7 @@ function WorkerDetailsView({ worker }: { worker: any }) {
         <div>
           <Label className="text-muted-foreground">Rate</Label>
           <p className="text-sm font-medium mt-1">
-            {worker.worker_type === 'grounds' 
+            {worker.worker_type === 'casual' 
               ? (worker.portfolios?.rate ? `₵${worker.portfolios.rate.toLocaleString()}` : '-')
               : (worker.positions?.rate ? `₵${worker.positions.rate.toLocaleString()}` : '-')}
           </p>
@@ -451,6 +478,14 @@ function WorkerDetailsView({ worker }: { worker: any }) {
           <Label className="text-muted-foreground">Contact Relation</Label>
           <p className="text-sm font-medium mt-1">{worker.cp_relation || '-'}</p>
         </div>
+        <div>
+          <Label className="text-muted-foreground">Account Location</Label>
+          <p className="text-sm font-medium mt-1">{worker.account_site?.site_name || '-'}</p>
+        </div>
+        <div>
+          <Label className="text-muted-foreground">Account Number</Label>
+          <p className="text-sm font-medium mt-1">{worker.account_number || '-'}</p>
+        </div>
       </div>
     </div>
   );
@@ -466,7 +501,7 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
 }) {
   const [form, setForm] = useState<any>({
     name: initial?.name || '',
-    worker_type: initial?.worker_type || 'grounds',
+    worker_type: initial?.worker_type || 'casual',
     portfolio_id: initial?.portfolio_id || '',
     position_id: initial?.position_id || '',
     site_id: initial?.site_id || '',
@@ -479,11 +514,13 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
     cp_relation: initial?.cp_relation || '',
     hometown: initial?.hometown || '',
     current_location: initial?.current_location || '',
+    account_location: initial?.account_location || '',
+    account_number: initial?.account_number || '',
   });
 
   // Check if portfolio is "helpers" (case-insensitive) - useMemo to recalculate when form changes
   const isHelpers = useMemo(() => {
-    if (form.worker_type !== 'grounds' || !form.portfolio_id) return false;
+    if (form.worker_type !== 'casual' || !form.portfolio_id) return false;
     const selectedPortfolio = portfolios.find((p: any) => p.id === form.portfolio_id);
     return selectedPortfolio?.portfolio_name?.toLowerCase() === 'helpers';
   }, [form.portfolio_id, form.worker_type, portfolios]);
@@ -509,8 +546,8 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
     const payload: any = {
       name: form.name,
       worker_type: form.worker_type,
-      portfolio_id: form.worker_type === 'grounds' ? (form.portfolio_id || null) : null,
-      position_id: form.worker_type === 'office' ? (form.position_id || null) : null,
+      portfolio_id: form.worker_type === 'casual' ? (form.portfolio_id || null) : null,
+      position_id: form.worker_type === 'non-marking' ? (form.position_id || null) : null,
       site_id: form.site_id || null,
       phone_number: form.phone_number,
       national_id: form.national_id,
@@ -521,6 +558,8 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
       cp_relation: form.cp_relation || '',
       hometown: form.hometown || '',
       current_location: form.current_location || '',
+      account_location: form.worker_type === 'casual' ? (form.account_location || null) : null,
+      account_number: form.worker_type === 'casual' ? (form.account_number || null) : null,
     };
 
     onSubmit(payload);
@@ -540,12 +579,12 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="grounds">Grounds</SelectItem>
-              <SelectItem value="office">Office</SelectItem>
+              <SelectItem value="casual">Casual</SelectItem>
+              <SelectItem value="non-marking">Non-Marking</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        {form.worker_type === 'grounds' && (
+        {form.worker_type === 'casual' && (
           <div>
             <Label htmlFor="portfolio">Portfolio</Label>
             <Select value={form.portfolio_id} onValueChange={handlePortfolioChange}>
@@ -567,13 +606,34 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
               <SelectValue placeholder="Select site" />
             </SelectTrigger>
             <SelectContent>
-              {sites.map((s: Site) => (
-                <SelectItem key={s.id} value={s.id}>{s.siteName}</SelectItem>
+              {sites.map((s: any) => (
+                <SelectItem key={s.id} value={s.id}>{s.site_name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        {form.worker_type === 'office' && (
+        {form.worker_type === 'casual' && (
+          <>
+            <div>
+              <Label htmlFor="accountLocation">Account Location (Site)</Label>
+              <Select value={form.account_location} onValueChange={(v) => setForm({ ...form, account_location: v })}>
+                <SelectTrigger id="accountLocation">
+                  <SelectValue placeholder="Select account site" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sites.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.site_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="accountNumber">Account Number</Label>
+              <Input id="accountNumber" value={form.account_number} onChange={(e) => setForm({ ...form, account_number: e.target.value })} />
+            </div>
+          </>
+        )}
+        {form.worker_type === 'non-marking' && (
           <div>
             <Label htmlFor="position">Position</Label>
             <Select value={form.position_id} onValueChange={(v) => setForm({ ...form, position_id: v })}>

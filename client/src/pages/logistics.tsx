@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/lib/auth';
+import { Textarea } from '@/components/ui/textarea';
 import { Package, TrendingUp, TrendingDown, ArrowRight, Plus, FileText, Search, AlertCircle, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryClient } from '@/lib/queryClient';
@@ -19,6 +21,8 @@ import type { Store, Inventory, GoodsLog, Invoice } from '@shared/schema';
 
 export default function LogisticsPage() {
   const { toast } = useToast();
+  const { userRole } = useAuth();
+  const isReadOnly = userRole === 'ceo';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStore, setSelectedStore] = useState('all');
 
@@ -104,9 +108,12 @@ export default function LogisticsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <AddInventoryDialog stores={stores || []} />
-          <AddGoodsLogDialog stores={stores || []} inventory={inventory || []} />
-
+          {!isReadOnly && (
+            <>
+              <AddInventoryDialog stores={stores || []} />
+              <AddGoodsLogDialog stores={stores || []} inventory={inventory || []} />
+            </>
+          )}
         </div>
       </div>
 
@@ -239,7 +246,10 @@ export default function LogisticsPage() {
                           className={idx % 2 === 0 ? 'bg-muted/30' : ''}
                           data-testid={`inventory-item-${item.id}`}
                         >
-                          <td className="py-3 px-4 font-medium">{item.item_name}</td>
+                          <td className="py-3 px-4 font-medium">
+                            {item.item_name}
+                            {item.remarks && <p className="text-xs text-muted-foreground mt-1 max-w-[200px] truncate" title={item.remarks}>{item.remarks}</p>}
+                          </td>
                           <td className="py-3 px-4">
                             <Badge variant="outline">{item.stores.name}</Badge>
                           </td>
@@ -329,6 +339,11 @@ export default function LogisticsPage() {
                           {format(new Date(log.date), 'HH:mm')}
                         </p>
                       </div>
+                      {log.remarks && (
+                        <div className="w-full basis-full mt-2 text-sm text-muted-foreground border-t pt-2 border-border/50">
+                          <span className="font-semibold text-foreground/70">Remarks:</span> {log.remarks}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -351,6 +366,7 @@ function AddInventoryDialog({ stores }: { stores: Store[] }) {
     storeId: '',
     itemName: '',
     quantity: '',
+    remarks: '',
   });
   const { toast } = useToast();
 
@@ -363,6 +379,7 @@ function AddInventoryDialog({ stores }: { stores: Store[] }) {
         store_id: formData.storeId,
         item_name: formData.itemName,
         quantity: parseInt(formData.quantity),
+        remarks: formData.remarks || null,
       });
 
       if (error) throw error;
@@ -374,7 +391,7 @@ function AddInventoryDialog({ stores }: { stores: Store[] }) {
 
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
       setOpen(false);
-      setFormData({ storeId: '', itemName: '', quantity: '' });
+      setFormData({ storeId: '', itemName: '', quantity: '', remarks: '' });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -439,6 +456,16 @@ function AddInventoryDialog({ stores }: { stores: Store[] }) {
               data-testid="input-quantity"
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="remarks">Remarks (Optional)</Label>
+            <Textarea
+              id="remarks"
+              value={formData.remarks}
+              onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+              placeholder="Any additional notes..."
+              rows={2}
+            />
+          </div>
           <DialogFooter className="gap-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={loading}>
               Cancel
@@ -463,6 +490,7 @@ function AddGoodsLogDialog({ stores, inventory }: { stores: Store[]; inventory: 
     storeTo: '',
     quantity: '',
     type: 'sent' as 'sent' | 'received',
+    remarks: '',
   });
   const { toast } = useToast();
 
@@ -521,7 +549,8 @@ function AddGoodsLogDialog({ stores, inventory }: { stores: Store[]; inventory: 
           store_to: formData.storeTo,
           quantity,
           type: 'sent',
-          status: 'pending'
+          status: 'pending',
+          remarks: formData.remarks || null
         });
         if (logErr) throw logErr;
         toast({ title: 'Success', description: 'Transfer sent' });
@@ -552,7 +581,8 @@ function AddGoodsLogDialog({ stores, inventory }: { stores: Store[]; inventory: 
             quantity,
             type: 'received',
             status: 'matched',
-            reference_id: matchedLog.id
+            reference_id: matchedLog.id,
+            remarks: formData.remarks || null
           });
           if (insErr) throw insErr;
           
@@ -570,7 +600,8 @@ function AddGoodsLogDialog({ stores, inventory }: { stores: Store[]; inventory: 
             store_to: formData.storeTo,
             quantity,
             type: 'received',
-            status: 'error'
+            status: 'error',
+            remarks: formData.remarks || null
           });
           if (err2) throw err2;
           await addToInventory(formData.storeTo, srcItem?.item_name || 'Unknown', quantity);
@@ -581,7 +612,7 @@ function AddGoodsLogDialog({ stores, inventory }: { stores: Store[]; inventory: 
       queryClient.invalidateQueries({ queryKey: ['/api/goods-logs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
       setOpen(false);
-      setFormData({ itemId: '', storeFrom: '', storeTo: '', quantity: '', type: 'sent' });
+      setFormData({ itemId: '', storeFrom: '', storeTo: '', quantity: '', type: 'sent', remarks: '' });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -677,6 +708,16 @@ function AddGoodsLogDialog({ stores, inventory }: { stores: Store[]; inventory: 
               placeholder="0"
               required
               data-testid="input-log-quantity"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="logRemarks">Remarks (Optional)</Label>
+            <Textarea
+              id="logRemarks"
+              value={formData.remarks}
+              onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+              placeholder="Any additional notes..."
+              rows={2}
             />
           </div>
           <DialogFooter className="gap-2">
