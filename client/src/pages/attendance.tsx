@@ -48,16 +48,28 @@ export default function AttendancePage() {
         query = query.eq('worker_type', 'office');
       }
 
+      // Supervisors: scope in the DB to avoid client-side filtering issues
+      if (isSupervisor && userSiteId) {
+        query = query.eq('site_id', userSiteId);
+      }
+
       const { data: workersData, error: workersError } = await query.order('name');
       if (workersError) throw workersError;
 
-      // For supervisors, filter workers - only show those assigned to their site
-      let filteredWorkers = (workersData || []);
-      if (isSupervisor && userSiteId) {
-        filteredWorkers = filteredWorkers.filter((w: any) => w.site_id === userSiteId);
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('test_authorization_header');
+        // eslint-disable-next-line no-console
+        console.log(rpcData, rpcError);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('RPC test error:', e);
       }
 
-      return filteredWorkers;
+      // Debug: log userSiteId vs first worker site id to detect mismatches
+      // eslint-disable-next-line no-console
+      console.log({ userSiteId, firstWorkerSiteId: workersData?.[0]?.site_id });
+
+      return workersData || [];
     },
   });
 
@@ -248,9 +260,18 @@ export default function AttendancePage() {
         .from('workers')
         .select('*, sites(site_name, id)')
         .ilike('name', `%${crossSiteQuery}%`)
-        .neq('site_id', userSiteId); // Exclude workers from user's own site
+        .neq('site_id', Number(userSiteId)); // Exclude workers from user's own site (normalize type)
 
       if (error) throw error;
+
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('test_authorization_header');
+        // eslint-disable-next-line no-console
+        console.log(rpcData, rpcError);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('RPC test error:', e);
+      }
 
       if (!data || data.length === 0) {
         toast({

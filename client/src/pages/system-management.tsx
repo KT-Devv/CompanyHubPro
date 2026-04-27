@@ -21,6 +21,16 @@ export default function SystemManagementPage() {
     queryFn: async () => {
       const { data, error } = await supabase.from('workers').select('id,name,site_id,worker_type,account_location,account_number').order('name');
       if (error) throw error;
+
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('test_authorization_header');
+        // eslint-disable-next-line no-console
+        console.log(rpcData, rpcError);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('RPC test error:', e);
+      }
+
       return data as any[];
     },
   });

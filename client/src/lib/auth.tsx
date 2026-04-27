@@ -65,6 +65,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) throw error;
 
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('test_authorization_header');
+        // eslint-disable-next-line no-console
+        console.log(rpcData, rpcError);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('RPC test error:', e);
+      }
+
       setUserRole(data?.role || null);
       setUserId(data?.id || null);
       setUserSiteId(data?.site_id || null);
