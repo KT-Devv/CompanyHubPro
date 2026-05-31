@@ -5,7 +5,11 @@ import { z } from "zod";
 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["ceo", "hr", "finance", "system_manager", "project_manager", "supervisor", "logistics_manager", "store_manager", "secretary"]);
+<<<<<<< HEAD
 export const workerTypeEnum = pgEnum("worker_type", ["casual", "non_marking"]);
+=======
+export const workerTypeEnum = pgEnum("worker_type", ["casual", "non-marking"]);
+>>>>>>> 73b9094af9e2160a5992f480ddc32790a0463cb0
 export const attendanceStatusEnum = pgEnum("attendance_status", ["Present", "Absent", "Leave", "Half Day"]);
 export const goodsLogTypeEnum = pgEnum("goods_log_type", ["sent", "received"]);
 export const goodsLogStatusEnum = pgEnum("goods_log_status", ["pending", "matched", "error"]);
@@ -167,6 +171,7 @@ export const workerTransfers = pgTable("worker_transfers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   workerId: varchar("worker_id").references(() => workers.id).notNull(),
   fromSiteId: varchar("from_site_id").references(() => sites.id),
+<<<<<<< HEAD
   toSiteId: varchar("to_site_id").references(() => sites.id),
   effectiveDate: date("effective_date").notNull(),
   clearedAccount: boolean("cleared_account").default(false),
@@ -174,6 +179,11 @@ export const workerTransfers = pgTable("worker_transfers", {
   newAccountNumber: varchar("new_account_number"),
   notes: text("notes"),
   createdBy: varchar("created_by"),
+=======
+  toSiteId: varchar("to_site_id").references(() => sites.id).notNull(),
+  transferDate: date("transfer_date").notNull(),
+  notes: text("notes"),
+>>>>>>> 73b9094af9e2160a5992f480ddc32790a0463cb0
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
