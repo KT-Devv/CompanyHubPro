@@ -81,8 +81,8 @@ export default function AttendancePage() {
       return data as any[];
     },
     // Auto-refresh attendance records
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 

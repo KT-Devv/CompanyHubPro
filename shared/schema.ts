@@ -4,7 +4,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Enums
-export const userRoleEnum = pgEnum("user_role", ["owner", "ceo", "hr", "finance", "system_manager", "project_manager", "supervisor", "logistics_manager", "store_manager", "secretary"]);
+export const userRoleEnum = pgEnum("user_role", ["ceo", "hr", "finance", "system_manager", "project_manager", "supervisor", "logistics_manager", "store_manager", "secretary"]);
 export const workerTypeEnum = pgEnum("worker_type", ["casual", "non-marking"]);
 export const attendanceStatusEnum = pgEnum("attendance_status", ["Present", "Absent", "Leave", "Half Day"]);
 export const goodsLogTypeEnum = pgEnum("goods_log_type", ["sent", "received"]);
@@ -154,6 +154,25 @@ export const loans = pgTable("loans", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Worker Transfers table
+export const workerTransfers = pgTable("worker_transfers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").references(() => workers.id).notNull(),
+  fromSiteId: varchar("from_site_id").references(() => sites.id),
+  toSiteId: varchar("to_site_id").references(() => sites.id).notNull(),
+  transferDate: date("transfer_date").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertWorkerTransferSchema = createInsertSchema(workerTransfers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertWorkerTransfer = z.infer<typeof insertWorkerTransferSchema>;
+export type WorkerTransfer = typeof workerTransfers.$inferSelect;
 
 // Deductions table
 export const deductions = pgTable("deductions", {

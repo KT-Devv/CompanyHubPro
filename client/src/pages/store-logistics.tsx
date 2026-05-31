@@ -48,7 +48,7 @@ export default function StoreLogisticsPage() {
       return data as any[];
     },
     enabled: !!userStoreId,
-    refetchInterval: 7000,
+    refetchInterval: 30000,
   });
 
   // Fetch goods logs involving THIS store (sent or received)
@@ -66,7 +66,7 @@ export default function StoreLogisticsPage() {
       return data as any[];
     },
     enabled: !!userStoreId,
-    refetchInterval: 7000,
+    refetchInterval: 30000,
   });
 
 

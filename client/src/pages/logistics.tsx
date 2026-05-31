@@ -14,10 +14,10 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { Textarea } from '@/components/ui/textarea';
-import { Package, TrendingUp, TrendingDown, ArrowRight, Plus, FileText, Search, AlertCircle, CheckCircle } from 'lucide-react';
+import { Package, TrendingUp, TrendingDown, ArrowRight, Plus, Search, AlertCircle, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Store, Inventory, GoodsLog, Invoice } from '@shared/schema';
+import type { Store, Inventory, GoodsLog } from '@shared/schema';
 
 export default function LogisticsPage() {
   const { toast } = useToast();
@@ -34,8 +34,8 @@ export default function LogisticsPage() {
       if (error) throw error;
       return data as Store[];
     },
-    refetchInterval: 15000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -53,8 +53,8 @@ export default function LogisticsPage() {
       if (error) throw error;
       return data as any[];
     },
-    refetchInterval: 7000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -70,8 +70,8 @@ export default function LogisticsPage() {
       if (error) throw error;
       return data as any[];
     },
-    refetchInterval: 7000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
