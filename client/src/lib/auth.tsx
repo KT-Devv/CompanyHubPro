@@ -27,7 +27,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
+      if (!mounted) return;
       setUser(session?.user ?? null);
       if (session?.user) {
         loadUserProfile(session.user.id);
@@ -39,9 +42,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
+      if (!mounted) return;
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadUserProfile(session.user.id);
+        if (_event !== 'INITIAL_SESSION') {
+          loadUserProfile(session.user.id);
+        }
       } else {
         setUserRole(null);
         setUserId(null);
@@ -52,7 +58,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   async function loadUserProfile(authUserId: string) {
@@ -64,15 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) throw error;
-
-      try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('test_authorization_header');
-        // eslint-disable-next-line no-console
-        console.log(rpcData, rpcError);
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('RPC test error:', e);
-      }
 
       setUserRole(data?.role || null);
       setUserId(data?.id || null);

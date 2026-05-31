@@ -29,7 +29,9 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id, createdAt: new Date(), siteId: insertUser.siteId || null };
+    const existing = Array.from(this.users.values()).find(u => u.email === insertUser.email);
+    if (existing) throw new Error('Email already exists');
+    const user: User = { ...insertUser, id, createdAt: new Date(), siteId: insertUser.siteId ?? null };
     this.users.set(id, user);
     return user;
   }

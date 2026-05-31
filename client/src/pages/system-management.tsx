@@ -22,15 +22,6 @@ export default function SystemManagementPage() {
       const { data, error } = await supabase.from('workers').select('id,name,site_id,worker_type,account_location,account_number').order('name');
       if (error) throw error;
 
-      try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('test_authorization_header');
-        // eslint-disable-next-line no-console
-        console.log(rpcData, rpcError);
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('RPC test error:', e);
-      }
-
       return data as any[];
     },
   });
@@ -223,13 +214,13 @@ export default function SystemManagementPage() {
               )}
 
               <div className="space-y-2">
-                <Label>Effective Date</Label>
-                <Input type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} className="bg-background" />
+                <Label htmlFor="effectiveDate">Effective Date</Label>
+                <Input id="effectiveDate" type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} className="bg-background" />
               </div>
 
               <div className="space-y-2 sm:col-span-2">
-                <Label>Transfer Notes / Reason</Label>
-                <Input placeholder="Optional remarks" value={notes} onChange={(e) => setNotes(e.target.value)} className="bg-background" />
+                <Label htmlFor="transferNotes">Transfer Notes / Reason</Label>
+                <Input id="transferNotes" placeholder="Optional remarks" value={notes} onChange={(e) => setNotes(e.target.value)} className="bg-background" />
               </div>
             </div>
 
@@ -239,7 +230,7 @@ export default function SystemManagementPage() {
                 disabled={transferMutation.isPending || !selectedWorker || !toSite}
                 className="flex-1 sm:flex-none"
               >
-                Execute Transfer
+                {transferMutation.isPending ? 'Transferring...' : 'Execute Transfer'}
               </Button>
               <Button 
                 variant="outline" 

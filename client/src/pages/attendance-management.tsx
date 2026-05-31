@@ -213,7 +213,7 @@ export default function AttendanceManagementPage() {
                   <SelectItem value="all">All Sites</SelectItem>
                   {sites.map((site: any) => (
                     <SelectItem key={site.id} value={site.id}>
-                      {site.site_name || site.siteName}
+                      {site.site_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -225,8 +225,8 @@ export default function AttendanceManagementPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="grounds">Grounds</SelectItem>
-                <SelectItem value="office">Office</SelectItem>
+                <SelectItem value="casual">Casual</SelectItem>
+                <SelectItem value="non-marking">Non-Marking</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -304,7 +304,7 @@ export default function AttendanceManagementPage() {
                           </Badge>
                         </td>
                         <td className="py-2 sm:py-3 px-2 sm:px-4 font-mono text-xs text-muted-foreground">
-                          {format(new Date(record.timestamp), 'HH:mm:ss')}
+                          {record.timestamp ? format(new Date(record.timestamp), 'HH:mm:ss') : '-'}
                         </td>
                       </tr>
                     ))}

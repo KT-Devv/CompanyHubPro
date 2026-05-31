@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, date, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, date, pgEnum, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   fullName: text("full_name").notNull(),
   role: userRoleEnum("role").notNull(),
   siteId: varchar("site_id"),
+  storeId: varchar("store_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -128,7 +129,9 @@ export const attendance = pgTable("attendance", {
   markedBy: varchar("marked_by").references(() => users.id).notNull(),
   workerType: workerTypeEnum("worker_type").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  uniqueWorkerDate: unique().on(table.workerId, table.date),
+}));
 
 // Salary Advances table
 export const salaryAdvances = pgTable("salary_advances", {

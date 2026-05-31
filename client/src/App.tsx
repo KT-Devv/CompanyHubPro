@@ -39,9 +39,12 @@ function ProtectedRoute({ component: Component, allowedRoles, ...rest }: any) {
     return <Redirect to="/login" />;
   }
 
-  // Check role-based access
-  if (allowedRoles && userRole && !allowedRoles.includes(userRole)) {
-    return <Redirect to="/attendance" />;
+  if (!userRole) {
+    return <Redirect to="/login" />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
+    return <Redirect to="/login" />;
   }
 
   return <Component {...rest} />;
@@ -60,7 +63,7 @@ function LoginWrapper() {
 
   // If already logged in, redirect based on role
   if (user) {
-    if (['owner', 'ceo', 'hr', 'project_manager', 'system_manager', 'finance'].includes(userRole || '')) {
+    if (['ceo', 'hr', 'project_manager', 'system_manager', 'finance'].includes(userRole || '')) {
       return <Redirect to="/welcome-management" />;
     } else if (userRole === 'secretary') {
       return <Redirect to="/welcome-secretary" />;
@@ -79,7 +82,7 @@ function Router() {
 
   // Redirect based on role
   function RoleBasedRedirect() {
-    if (['owner', 'ceo', 'hr', 'project_manager', 'system_manager', 'finance'].includes(userRole || '')) {
+    if (['ceo', 'hr', 'project_manager', 'system_manager', 'finance'].includes(userRole || '')) {
       return <Redirect to="/welcome-management" />;
     } else if (userRole === 'secretary') {
       return <Redirect to="/welcome-secretary" />;
@@ -101,7 +104,7 @@ function Router() {
       <Route path="/welcome-management">
         <ProtectedRoute
           component={WelcomeManagement}
-          allowedRoles={['owner', 'ceo', 'hr', 'project_manager', 'system_manager', 'finance']}
+          allowedRoles={['ceo', 'hr', 'project_manager', 'system_manager', 'finance']}
         />
       </Route>
       <Route path="/welcome-secretary">
@@ -126,19 +129,19 @@ function Router() {
       <Route path="/attendance-management">
         <ProtectedRoute
           component={AttendanceManagementPage}
-          allowedRoles={['owner', 'ceo', 'hr', 'project_manager', 'system_manager']}
+          allowedRoles={['ceo', 'hr', 'project_manager', 'system_manager']}
         />
       </Route>
       <Route path="/workers-management">
         <ProtectedRoute
           component={WorkersManagementPage}
-          allowedRoles={['owner', 'ceo', 'hr', 'system_manager', 'project_manager']}
+          allowedRoles={['ceo', 'hr', 'system_manager', 'project_manager']}
         />
       </Route>
       <Route path="/logistics">
         <ProtectedRoute
           component={LogisticsPage}
-          allowedRoles={['owner', 'ceo', 'hr', 'system_manager', 'logistics_manager', 'project_manager']}
+          allowedRoles={['ceo', 'hr', 'system_manager', 'logistics_manager', 'project_manager']}
         />
       </Route>
       <Route path="/store-logistics">
@@ -153,19 +156,19 @@ function Router() {
           // Salaries logic left intact for older roles, wait, Finance Officer gets /finance, but maybe we rename /salaries-management to /finance or just use the same page?
           // I'll leave the old one as it was, and create /finance for Finance portal, or repurpose this. 
           // actually, the user said "create a new portal for the finance officer". So we'll limit old one or redirect.
-          allowedRoles={['owner', 'ceo', 'hr']}
+          allowedRoles={['ceo', 'hr']}
         />
       </Route>
       <Route path="/finance">
         <ProtectedRoute
           component={FinancePage}
-          allowedRoles={['owner', 'ceo', 'hr', 'system_manager', 'finance']}
+          allowedRoles={['ceo', 'hr', 'system_manager', 'finance']}
         />
       </Route>
       <Route path="/system-management">
         <ProtectedRoute
           component={SystemManagementPage}
-          allowedRoles={['owner', 'ceo', 'hr', 'system_manager']}
+          allowedRoles={['ceo', 'hr', 'system_manager']}
         />
       </Route>
       <Route component={NotFound} />

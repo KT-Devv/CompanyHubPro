@@ -36,8 +36,6 @@ export default function Login() {
         description: error.message || "Failed to log in",
         variant: "destructive",
       });
-      // Clear credentials on login failure
-      setEmail('');
       setPassword('');
     } finally {
       setLoading(false);
@@ -111,7 +109,7 @@ export default function Login() {
           </form>
         </CardContent>
       </Card>
-      <Dialog open={openForgot} onOpenChange={setOpenForgot}>
+      <Dialog open={openForgot} onOpenChange={(open) => { setOpenForgot(open); if (!open) setForgotEmail(''); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Reset password</DialogTitle>
@@ -153,7 +151,7 @@ export default function Login() {
                   setResetLoading(false);
                 }
               }}
-              disabled={resetLoading || !forgotEmail}
+              disabled={resetLoading || !forgotEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotEmail)}
             >
               {resetLoading ? 'Sending...' : 'Send reset link'}
             </Button>

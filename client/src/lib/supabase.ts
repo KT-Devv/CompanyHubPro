@@ -18,12 +18,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
     // eslint-disable-next-line no-console
     console.error('[supabase] Missing env variables. ' + info + '\nPlease copy `client/.env.example` to `client/.env` and set your keys.');
 
-    // A stub that throws when any property is accessed, to avoid unexpected crashes
     const stub = new Proxy({}, {
-      get() {
-        return () => {
-          throw new Error('Supabase is not configured. See client/.env (development)');
-        };
+      get(_target, prop) {
+        if (prop === 'then') return undefined;
+        return new Proxy(() => {}, {
+          get(_target2, prop2) {
+            if (prop2 === 'then') return undefined;
+            return () => {
+              throw new Error('Supabase is not configured. See client/.env (development)');
+            };
+          },
+          apply() {
+            throw new Error('Supabase is not configured. See client/.env (development)');
+          },
+        });
       },
     });
 

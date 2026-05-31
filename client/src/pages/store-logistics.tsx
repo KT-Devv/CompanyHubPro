@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Package, TrendingUp, TrendingDown, ArrowRight, Plus, FileText, Search, AlertCircle, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { queryClient } from '@/lib/queryClient';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Store, Inventory, GoodsLog, Invoice } from '@shared/schema';
 import { useAuth } from '@/lib/auth';
 
@@ -207,7 +207,7 @@ export default function StoreLogisticsPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 text-xs text-muted-foreground font-mono">
-                            {format(new Date(item.last_updated), 'MMM dd, yyyy HH:mm')}
+                            {item.last_updated ? format(new Date(item.last_updated), 'MMM dd, yyyy HH:mm') : '-'}
                           </td>
                         </tr>
                       ))}
@@ -261,7 +261,7 @@ export default function StoreLogisticsPage() {
                       </div>
                       <div className="text-right min-w-[120px]">
                         <p className="text-xs text-muted-foreground font-mono">
-                          {format(new Date(log.date), 'MMM dd, yyyy')}
+                          {log.date ? format(new Date(log.date), 'MMM dd, yyyy') : '-'}
                         </p>
                       </div>
                       {log.remarks && (
@@ -289,6 +289,7 @@ function AddInventoryDialog({ userStoreId }: { userStoreId: string }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ itemName: '', quantity: '', remarks: '' });
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -301,13 +302,13 @@ function AddInventoryDialog({ userStoreId }: { userStoreId: string }) {
       if (fetchErr) throw fetchErr;
 
       if (existing) {
-        const { error: updErr } = await supabase.from('inventory').update({ quantity: existing.quantity + parseInt(formData.quantity), last_updated: new Date() }).eq('id', existing.id);
+        const { error: updErr } = await supabase.from('inventory').update({ quantity: existing.quantity + parseInt(formData.quantity, 10), last_updated: new Date() }).eq('id', existing.id);
         if (updErr) throw updErr;
       } else {
         const { error: insErr } = await supabase.from('inventory').insert({
           store_id: userStoreId,
           item_name: formData.itemName,
-          quantity: parseInt(formData.quantity),
+          quantity: parseInt(formData.quantity, 10),
           remarks: formData.remarks || null
         });
         if (insErr) throw insErr;
@@ -364,22 +365,20 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ itemId: '', otherStoreId: '', quantity: '', logId: '', type: 'sent' as 'sent' | 'received', remarks: '' });
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const quantity = parseInt(formData.quantity);
+      const quantity = parseInt(formData.quantity, 10);
       if (isNaN(quantity) || quantity <= 0) throw new Error('Quantity required');
 
-      // Helper for inventory targets
       const addToInventory = async (storeId: string, itemName: string, qty: number) => {
         const { data: targetRow, error: fetchErr } = await supabase.from('inventory')
           .select('*').eq('store_id', storeId).eq('item_name', itemName).maybeSingle();
-
         if (fetchErr) throw fetchErr;
-
         if (targetRow) {
           const { error: updErr } = await supabase.from('inventory').update({ quantity: (targetRow.quantity || 0) + qty, last_updated: new Date() }).eq('id', targetRow.id);
           if (updErr) throw updErr;
@@ -394,10 +393,8 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
         const { data: srcItem } = await supabase.from('inventory').select('*').eq('id', formData.itemId).single();
         if ((srcItem.quantity || 0) < quantity) throw new Error('Insufficient quantity');
         
-        // Decrement source immediately
         const { error: decErr } = await supabase.from('inventory').update({ quantity: srcItem.quantity - quantity }).eq('id', srcItem.id);
         if (decErr) throw decErr;
-        // Create sent log as pending
         const { error: logErr } = await supabase.from('goods_log').insert({
           item_id: formData.itemId,
           store_from: userStoreId,
@@ -410,19 +407,16 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
         if (logErr) throw logErr;
         toast({ title: 'Success', description: 'Transfer sent' });
       } else {
-        // Received logic
         if (!formData.logId) throw new Error('You must select an incoming transfer');
         const pendingLog = goodsLogs.find(l => l.id === formData.logId);
         if (!pendingLog) throw new Error('Pending transfer not found');
         
         if (pendingLog.quantity === quantity) {
-          // Merged matched log
           const { error: updErr } = await supabase.from('goods_log').update({ status: 'matched' }).eq('id', pendingLog.id);
           if (updErr) throw updErr;
           await addToInventory(userStoreId, pendingLog.inventory?.item_name || 'Unknown', quantity);
           toast({ title: 'Success', description: 'Transfer matched perfectly!' });
         } else {
-          // Mismatched
           const { error: err1 } = await supabase.from('goods_log').update({ status: 'error' }).eq('id', pendingLog.id);
           if (err1) throw err1;
           const { error: err2 } = await supabase.from('goods_log').insert({
@@ -443,8 +437,7 @@ function AddGoodsLogDialog({ stores, inventory, userStoreId, goodsLogs }: { stor
 
       queryClient.invalidateQueries({ queryKey: ['/api/goods-logs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      setFormData({ ...formData, quantity: '', remarks: '' });
-      // Keep modal open so they can add another (batch adding feature equivalent)
+      setFormData({ itemId: '', otherStoreId: '', quantity: '', logId: '', type: formData.type, remarks: '' });
       toast({ title: "Success", description: "Saved. You can log another if needed." });
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });

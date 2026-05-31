@@ -248,7 +248,7 @@ export default function FinancePage() {
     });
 
     return calculations;
-  }, [workers, attendanceRecords, advances, loans, isCurrentMonth]);
+  }, [workers, attendanceRecords, advances, loans, globalDeductions, isCurrentMonth]);
 
   const filteredCalculations = useMemo(() => {
     let filtered = salaryCalculations;
@@ -531,7 +531,7 @@ function AddAdvanceForm({ workers, selectedMonth, onSubmit }: { workers: any[]; 
     if (!workerId || !amount) {
       return;
     }
-    onSubmit({ workerId, amount: parseInt(amount), date, notes });
+    onSubmit({ workerId, amount: parseInt(amount, 10), date, notes });
   };
 
   return (
@@ -627,7 +627,7 @@ function AddLoanForm({ workers, selectedMonth, onSubmit }: { workers: any[]; sel
     if (!workerId || !amount) {
       return;
     }
-    onSubmit({ workerId, amount: parseInt(amount), date, notes });
+    onSubmit({ workerId, amount: parseInt(amount, 10), date, notes });
   };
 
   return (
@@ -723,7 +723,7 @@ function AddDeductionForm({ workers, selectedMonth, onSubmit }: { workers: any[]
     if (!workerId || !amount) {
       return;
     }
-    onSubmit({ workerId, amount: parseInt(amount), date, notes });
+    onSubmit({ workerId, amount: parseInt(amount, 10), date, notes });
   };
 
   return (

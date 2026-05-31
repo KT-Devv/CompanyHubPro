@@ -134,7 +134,7 @@ export default function SalariesManagementPage() {
     const calculations: SalaryCalculation[] = [];
 
     workers.forEach((worker: any) => {
-      if (worker.worker_type === 'grounds') {
+      if (worker.worker_type === 'casual') {
         // Ground workers: Calculate based on days present × portfolio rate
         // Count full day as 1 and half day as 0.5
         const daysPresent = attendanceRecords
@@ -169,7 +169,7 @@ export default function SalariesManagementPage() {
           finalSalary: isCurrentMonth ? baseSalary : finalSalary, // Only show deductions at month end
           isFixed: false,
         });
-      } else if (worker.worker_type === 'office') {
+      } else if (worker.worker_type === 'non-marking') {
         // Office workers: Fixed monthly salary from position
         const baseSalary = worker.positions?.rate || 0;
         
@@ -522,8 +522,8 @@ export default function SalariesManagementPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="grounds">Grounds</SelectItem>
-                <SelectItem value="office">Office</SelectItem>
+                <SelectItem value="casual">Casual</SelectItem>
+                <SelectItem value="non-marking">Non-Marking</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -624,7 +624,7 @@ function AddAdvanceForm({ workers, selectedMonth, onSubmit }: { workers: any[]; 
     if (!workerId || !amount) {
       return;
     }
-    onSubmit({ workerId, amount: parseInt(amount), date, notes });
+    onSubmit({ workerId, amount: parseInt(amount, 10), date, notes });
   };
 
   return (
@@ -720,7 +720,7 @@ function AddLoanForm({ workers, selectedMonth, onSubmit }: { workers: any[]; sel
     if (!workerId || !amount) {
       return;
     }
-    onSubmit({ workerId, amount: parseInt(amount), date, notes });
+    onSubmit({ workerId, amount: parseInt(amount, 10), date, notes });
   };
 
   return (

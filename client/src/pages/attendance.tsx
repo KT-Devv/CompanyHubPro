@@ -43,9 +43,8 @@ export default function AttendancePage() {
     queryFn: async () => {
       let query = supabase.from('workers').select('*, portfolios(portfolio_name, id), positions(position_name, id), sites(site_name, id)');
 
-      // Secretaries can only see office workers
       if (isSecretary) {
-        query = query.eq('worker_type', 'office');
+        query = query.eq('worker_type', 'non-marking');
       }
 
       // Supervisors: scope in the DB to avoid client-side filtering issues
@@ -55,19 +54,6 @@ export default function AttendancePage() {
 
       const { data: workersData, error: workersError } = await query.order('name');
       if (workersError) throw workersError;
-
-      try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('test_authorization_header');
-        // eslint-disable-next-line no-console
-        console.log(rpcData, rpcError);
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('RPC test error:', e);
-      }
-
-      // Debug: log userSiteId vs first worker site id to detect mismatches
-      // eslint-disable-next-line no-console
-      console.log({ userSiteId, firstWorkerSiteId: workersData?.[0]?.site_id });
 
       return workersData || [];
     },
@@ -88,9 +74,8 @@ export default function AttendancePage() {
         throw error;
       }
       
-      // Filter on client side for secretaries
       if (isSecretary && data) {
-        return (data as any[]).filter(record => record.worker_type === 'office');
+        return (data as any[]).filter(record => record.worker_type === 'non-marking');
       }
       
       return data as any[];
@@ -260,18 +245,9 @@ export default function AttendancePage() {
         .from('workers')
         .select('*, sites(site_name, id)')
         .ilike('name', `%${crossSiteQuery}%`)
-        .neq('site_id', Number(userSiteId)); // Exclude workers from user's own site (normalize type)
+        .neq('site_id', userSiteId);
 
       if (error) throw error;
-
-      try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('test_authorization_header');
-        // eslint-disable-next-line no-console
-        console.log(rpcData, rpcError);
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error('RPC test error:', e);
-      }
 
       if (!data || data.length === 0) {
         toast({
@@ -557,14 +533,14 @@ export default function AttendancePage() {
                           <p className="font-semibold text-sm sm:text-base text-slate-900">{worker.name}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-2">
                         <Badge variant="secondary" className="text-xs bg-gray-100 text-slate-700 border border-gray-200">
-                          {worker.worker_type === 'office' ? '🏢' : '🔧'} {worker.worker_type}
+                          {worker.worker_type === 'non-marking' ? '🏢' : '🔧'} {worker.worker_type}
                         </Badge>
-                        {worker.worker_type === 'grounds' && worker.portfolios && (
+                        {worker.worker_type === 'casual' && worker.portfolios && (
                           <span className="text-xs text-slate-700 font-semibold">
                             {worker.portfolios.portfolio_name}
                           </span>
                         )}
-                        {worker.worker_type === 'office' && worker.positions && (
+                        {worker.worker_type === 'non-marking' && worker.positions && (
                           <span className="text-xs text-slate-700 font-semibold">
                             {worker.positions.position_name}
                           </span>

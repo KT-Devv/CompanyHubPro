@@ -9,7 +9,7 @@ export default function WelcomeManagement() {
   const { userFullName, userRole } = useAuth();
 
   const roleDisplayName: Record<string, string> = {
-    owner: 'Owner',
+    ceo: 'CEO',
     hr: 'HR Manager',
     project_manager: 'Project Manager',
   };

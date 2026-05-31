@@ -41,9 +41,9 @@ After creating a user via the dashboard, you need to add their profile data:
 INSERT INTO users (id, email, full_name, role, site_id)
 VALUES (
   'paste-user-uuid-here',
-  'owner@company.com',
-  'Company Owner',
-  'owner',
+  'ceo@company.com',
+  'Company CEO',
+  'ceo',
   NULL  -- NULL for owner/hr/pm, specific site UUID for supervisors
 );
 ```
@@ -52,11 +52,11 @@ VALUES (
 
 Create these test users with different roles:
 
-1. **Owner Account**
-   - Email: `owner@company.com`
-   - Password: `password123`
-   - Role: `owner`
-   - Site: NULL
+1. **CEO Account**
+  - Email: `ceo@company.com`
+  - Password: `password123`
+  - Role: `ceo`
+  - Site: NULL
 
 2. **Supervisor Account**
    - Email: `supervisor@company.com`
@@ -116,7 +116,7 @@ These are automatically used by the application.
 1. Run the application (it should start automatically)
 2. Navigate to the login page
 3. Try logging in with different user accounts to test role-based access:
-   - **Owner/HR/PM**: Should see both Attendance and Logistics modules
+  - **CEO/HR/PM**: Should see both Attendance and Logistics modules
    - **Supervisor**: Should only see Attendance page with workers from their assigned site
    - **Secretary**: Should only see Attendance page with office workers
 

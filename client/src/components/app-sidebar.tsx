@@ -26,10 +26,10 @@ export function AppSidebar() {
   const { userRole, signOut, user, userFullName } = useAuth();
   const [location, setLocation] = useLocation();
 
-  const canAccessAttendance = ['owner', 'ceo', 'hr', 'project_manager', 'supervisor', 'secretary', 'store_manager', 'logistics_manager', 'system_manager', 'finance'].includes(userRole || '');
-  const canAccessLogistics = ['owner', 'ceo', 'hr', 'project_manager', 'system_manager', 'logistics_manager'].includes(userRole || '');
-  const isManagement = ['owner', 'ceo', 'hr', 'project_manager', 'system_manager'].includes(userRole || '');
-  const isFinance = userRole === 'finance' || isManagement;
+  const canAccessAttendance = ['supervisor', 'secretary', 'store_manager'].includes(userRole || '');
+  const canAccessLogistics = ['ceo', 'hr', 'project_manager', 'system_manager', 'logistics_manager'].includes(userRole || '');
+  const isManagement = ['ceo', 'hr', 'project_manager', 'system_manager'].includes(userRole || '');
+  const isFinance = ['ceo', 'hr', 'system_manager', 'finance'].includes(userRole || '');
 
   const menuItems = [
     ...(isManagement
@@ -144,14 +144,14 @@ export function AppSidebar() {
                   {userFullName || user?.email}
                 </p>
                 <Badge variant="secondary" className="text-xs mt-1">
-                  {userRole}
+                  {userRole ?? 'Unknown'}
                 </Badge>
               </div>
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={signOut} data-testid="button-logout">
+            <DropdownMenuItem onClick={() => { signOut().catch(console.error); }} data-testid="button-logout">
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
             </DropdownMenuItem>

@@ -11,16 +11,19 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const [sessionError, setSessionError] = useState(false);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    // Parse session from the URL fragment (Supabase recovery flow)
     (async () => {
       try {
-        await supabase.auth.getSessionFromUrl();
-      } catch (err) {
-        // ignore; we'll show the form anyway if user has an active session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setSessionError(true);
+        }
+      } catch {
+        setSessionError(true);
       } finally {
         setReady(true);
       }
@@ -59,6 +62,12 @@ export default function ResetPassword() {
         <p className="text-sm text-muted-foreground mb-4">Enter a new password for your account.</p>
         {!ready ? (
           <div className="text-center">Preparing…</div>
+        ) : sessionError ? (
+          <div className="text-center text-destructive">
+            <p>Invalid or expired reset link.</p>
+            <p className="text-sm mt-2">Please request a new password reset.</p>
+            <Button className="mt-4" onClick={() => setLocation('/login')}>Go to Login</Button>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">

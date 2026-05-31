@@ -39,7 +39,7 @@ CREATE POLICY "Management can view salary advances" ON salary_advances
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -48,7 +48,7 @@ CREATE POLICY "Management can insert salary advances" ON salary_advances
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -57,7 +57,7 @@ CREATE POLICY "Management can view loans" ON loans
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -66,7 +66,7 @@ CREATE POLICY "Management can insert loans" ON loans
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 

@@ -7,13 +7,13 @@ CREATE POLICY "Users can update attendance" ON attendance
     EXISTS (
       SELECT 1 FROM users u
       WHERE u.id = auth.uid()
-      AND u.role IN ('owner', 'hr', 'project_manager', 'supervisor')
+      AND u.role IN ('ceo', 'hr', 'project_manager', 'supervisor')
     )
   ) WITH CHECK (
     EXISTS (
       SELECT 1 FROM users u
       WHERE u.id = auth.uid()
-      AND u.role IN ('owner', 'hr', 'project_manager', 'supervisor')
+      AND u.role IN ('ceo', 'hr', 'project_manager', 'supervisor')
     )
   );
 

@@ -24,7 +24,7 @@ CREATE POLICY "Users can view workers" ON workers
       SELECT 1 FROM users u 
       WHERE u.id = auth.uid() 
       AND (
-        u.role IN ('owner', 'hr', 'project_manager', 'supervisor')
+        u.role IN ('ceo', 'hr', 'project_manager', 'supervisor', 'store_manager')
         OR (u.role = 'secretary' AND workers.worker_type = 'office')
       )
     )
@@ -37,7 +37,7 @@ CREATE POLICY "Users can view attendance" ON attendance
       SELECT 1 FROM users u
       WHERE u.id = auth.uid()
       AND (
-        u.role IN ('owner', 'hr', 'project_manager', 'supervisor')
+        u.role IN ('ceo', 'hr', 'project_manager', 'supervisor', 'store_manager')
         OR (u.role = 'secretary' AND attendance.worker_type = 'office')
       )
     )

@@ -5,7 +5,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create ENUM types
-CREATE TYPE user_role AS ENUM ('owner', 'hr', 'project_manager', 'supervisor', 'secretary');
+CREATE TYPE user_role AS ENUM ('ceo', 'hr', 'project_manager', 'supervisor', 'secretary');
 CREATE TYPE worker_type AS ENUM ('office', 'grounds');
 CREATE TYPE attendance_status AS ENUM ('Present', 'Absent', 'Leave');
 CREATE TYPE goods_log_type AS ENUM ('sent', 'received');
@@ -36,8 +36,7 @@ CREATE TABLE positions (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
--- Users table (profile data for Supabase auth.users)
--- Note: Passwords are managed by Supabase Auth, NOT stored in this table
+
 CREATE TABLE users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL UNIQUE,
@@ -190,26 +189,24 @@ CREATE POLICY "Authenticated users can view portfolios" ON portfolios
 CREATE POLICY "Authenticated users can view positions" ON positions
   FOR SELECT TO authenticated USING (true);
 
--- Workers: Users can view workers based on role
 CREATE POLICY "Users can view workers" ON workers
   FOR SELECT TO authenticated USING (
     EXISTS (
       SELECT 1 FROM users u 
       WHERE u.id = auth.uid() 
       AND (
-        u.role IN ('owner', 'hr', 'project_manager', 'supervisor')
+        u.role IN ('ceo', 'hr', 'project_manager', 'supervisor')
         OR (u.role = 'secretary' AND workers.worker_type = 'office')
       )
     )
   );
 
--- Stores: Management can view and manage stores
 CREATE POLICY "Management can view stores" ON stores
   FOR SELECT TO authenticated USING (
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -218,17 +215,16 @@ CREATE POLICY "Management can insert stores" ON stores
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
--- Inventory: Management can view and manage inventory
 CREATE POLICY "Management can view inventory" ON inventory
   FOR SELECT TO authenticated USING (
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -237,7 +233,7 @@ CREATE POLICY "Management can insert inventory" ON inventory
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -246,7 +242,7 @@ CREATE POLICY "Management can update inventory" ON inventory
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -256,7 +252,7 @@ CREATE POLICY "Management can view goods log" ON goods_log
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -265,7 +261,7 @@ CREATE POLICY "Management can insert goods log" ON goods_log
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -275,7 +271,7 @@ CREATE POLICY "Management can view invoices" ON invoices
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -284,18 +280,17 @@ CREATE POLICY "Management can insert invoices" ON invoices
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
--- Attendance: Role-based access
 CREATE POLICY "Users can view attendance" ON attendance
   FOR SELECT TO authenticated USING (
     EXISTS (
       SELECT 1 FROM users u
       WHERE u.id = auth.uid()
       AND (
-        u.role IN ('owner', 'hr', 'project_manager', 'supervisor')
+        u.role IN ('ceo', 'hr', 'project_manager', 'supervisor')
         OR (u.role = 'secretary' AND attendance.worker_type = 'office')
       )
     )
@@ -307,7 +302,7 @@ CREATE POLICY "Users can insert attendance" ON attendance
       SELECT 1 FROM users u
       WHERE u.id = auth.uid()
       AND (
-        u.role IN ('owner', 'hr', 'project_manager', 'supervisor', 'secretary')
+        u.role IN ('ceo', 'hr', 'project_manager', 'supervisor', 'secretary')
       )
     )
   );
@@ -318,7 +313,7 @@ CREATE POLICY "Management can view salary advances" ON salary_advances
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -327,7 +322,7 @@ CREATE POLICY "Management can insert salary advances" ON salary_advances
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -337,7 +332,7 @@ CREATE POLICY "Management can view loans" ON loans
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -346,7 +341,7 @@ CREATE POLICY "Management can insert loans" ON loans
     EXISTS (
       SELECT 1 FROM users 
       WHERE id = auth.uid() 
-      AND role IN ('owner', 'hr', 'project_manager')
+      AND role IN ('ceo', 'hr', 'project_manager')
     )
   );
 
@@ -383,7 +378,7 @@ INSERT INTO stores (name, location) VALUES
 -- IMPORTANT: Passwords are managed by Supabase Auth - do NOT store passwords in this table
 -- Example (replace with actual user IDs from auth.users):
 -- INSERT INTO users (id, email, full_name, role, site_id)
--- VALUES ('uuid-from-auth-users', 'user@example.com', 'User Name', 'owner', NULL);
+-- VALUES ('uuid-from-auth-users', 'user@example.com', 'User Name', 'ceo', NULL);
 
 -- Trigger to update inventory last_updated timestamp
 CREATE OR REPLACE FUNCTION update_inventory_timestamp()
