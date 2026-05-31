@@ -2,21 +2,15 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from '@/hooks/use-toast';
-import { cn } from "@/lib/utils";
-import { DollarSign, Search, Calendar, Calculator, Plus, X, ArrowUpDown, ArrowUp, ArrowDown, Check, ChevronsUpDown } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, isSameMonth, isSameYear, getDaysInMonth } from 'date-fns';
-import type { Worker } from '@shared/schema';
+import { DollarSign, Search, Calendar, Calculator, Plus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, isSameMonth, isSameYear } from 'date-fns';
+import { AddAdvanceForm, AddLoanForm } from '@/components/finance-forms';
 
 interface SalaryCalculation {
   workerId: string;
@@ -68,8 +62,8 @@ export default function SalariesManagementPage() {
       return data as any[];
     },
     refetchOnMount: 'always',
-    refetchInterval: 15000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -88,8 +82,8 @@ export default function SalariesManagementPage() {
       return data as any[];
     },
     refetchOnMount: 'always',
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -105,8 +99,8 @@ export default function SalariesManagementPage() {
       return data as any[];
     },
     refetchOnMount: 'always',
-    refetchInterval: 7000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -122,8 +116,8 @@ export default function SalariesManagementPage() {
       return data as any[];
     },
     refetchOnMount: 'always',
-    refetchInterval: 7000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -169,7 +163,7 @@ export default function SalariesManagementPage() {
           finalSalary: isCurrentMonth ? baseSalary : finalSalary, // Only show deductions at month end
           isFixed: false,
         });
-      } else if (worker.worker_type === 'non-marking') {
+      } else if (worker.worker_type === 'non_marking') {
         // Office workers: Fixed monthly salary from position
         const baseSalary = worker.positions?.rate || 0;
         
@@ -523,7 +517,7 @@ export default function SalariesManagementPage() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="casual">Casual</SelectItem>
-                <SelectItem value="non-marking">Non-Marking</SelectItem>
+                <SelectItem value="non_marking">Non-Marking</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -612,195 +606,6 @@ export default function SalariesManagementPage() {
   );
 }
 
-function AddAdvanceForm({ workers, selectedMonth, onSubmit }: { workers: any[]; selectedMonth: string; onSubmit: (data: any) => void }) {
-  const [workerId, setWorkerId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [notes, setNotes] = useState('');
-  const [workerOpen, setWorkerOpen] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!workerId || !amount) {
-      return;
-    }
-    onSubmit({ workerId, amount: parseInt(amount, 10), date, notes });
-  };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="worker">Worker</Label>
-        <Popover open={workerOpen} onOpenChange={setWorkerOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={workerOpen}
-              className="w-full justify-between mt-1 text-left font-normal"
-            >
-              {workerId ? workers.find((w) => w.id === workerId)?.name : "Select worker..."}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[300px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search worker..." />
-              <CommandList>
-                <CommandEmpty>No worker found.</CommandEmpty>
-                <CommandGroup className="max-h-[200px] overflow-y-auto">
-                  {workers.map((worker) => (
-                    <CommandItem
-                      key={worker.id}
-                      value={worker.name}
-                      onSelect={() => {
-                        setWorkerId(worker.id);
-                        setWorkerOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          workerId === worker.id ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {worker.name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      </div>
-      <div>
-        <Label htmlFor="amount">Amount (₵)</Label>
-        <Input
-          id="amount"
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          required
-          min="1"
-        />
-      </div>
-      <div>
-        <Label htmlFor="date">Date</Label>
-        <Input
-          id="date"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="notes">Notes (optional)</Label>
-        <Textarea
-          id="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={3}
-        />
-      </div>
-      <Button type="submit" className="w-full">Add Advance</Button>
-    </form>
-  );
-}
-
-function AddLoanForm({ workers, selectedMonth, onSubmit }: { workers: any[]; selectedMonth: string; onSubmit: (data: any) => void }) {
-  const [workerId, setWorkerId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [notes, setNotes] = useState('');
-  const [workerOpen, setWorkerOpen] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!workerId || !amount) {
-      return;
-    }
-    onSubmit({ workerId, amount: parseInt(amount, 10), date, notes });
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="worker">Worker</Label>
-        <Popover open={workerOpen} onOpenChange={setWorkerOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={workerOpen}
-              className="w-full justify-between mt-1 text-left font-normal"
-            >
-              {workerId ? workers.find((w) => w.id === workerId)?.name : "Select worker..."}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[300px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search worker..." />
-              <CommandList>
-                <CommandEmpty>No worker found.</CommandEmpty>
-                <CommandGroup className="max-h-[200px] overflow-y-auto">
-                  {workers.map((worker) => (
-                    <CommandItem
-                      key={worker.id}
-                      value={worker.name}
-                      onSelect={() => {
-                        setWorkerId(worker.id);
-                        setWorkerOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          workerId === worker.id ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {worker.name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      </div>
-      <div>
-        <Label htmlFor="amount">Amount (₵)</Label>
-        <Input
-          id="amount"
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          required
-          min="1"
-        />
-      </div>
-      <div>
-        <Label htmlFor="date">Date</Label>
-        <Input
-          id="date"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          required
-        />
-      </div>
-      <div>
-        <Label htmlFor="notes">Notes (optional)</Label>
-        <Textarea
-          id="notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={3}
-        />
-      </div>
-      <Button type="submit" className="w-full">Add Loan</Button>
-    </form>
-  );
-}
 

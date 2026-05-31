@@ -66,7 +66,7 @@ export default function SystemManagementPage() {
         worker_id: selectedWorker,
         from_site_id: selectedWorkerDetails?.site_id,
         to_site_id: toSite,
-        transfer_date: effectiveDate,
+        effective_date: effectiveDate,
         notes: notes || null
       });
 

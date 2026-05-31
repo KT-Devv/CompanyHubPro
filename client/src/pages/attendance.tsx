@@ -44,7 +44,7 @@ export default function AttendancePage() {
       let query = supabase.from('workers').select('*, portfolios(portfolio_name, id), positions(position_name, id), sites(site_name, id)');
 
       if (isSecretary) {
-        query = query.eq('worker_type', 'non-marking');
+        query = query.eq('worker_type', 'non_marking');
       }
 
       // Supervisors: scope in the DB to avoid client-side filtering issues
@@ -75,14 +75,14 @@ export default function AttendancePage() {
       }
       
       if (isSecretary && data) {
-        return (data as any[]).filter(record => record.worker_type === 'non-marking');
+        return (data as any[]).filter(record => record.worker_type === 'non_marking');
       }
       
       return data as any[];
     },
     // Auto-refresh attendance records
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -533,14 +533,14 @@ export default function AttendancePage() {
                           <p className="font-semibold text-sm sm:text-base text-slate-900">{worker.name}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-2">
                         <Badge variant="secondary" className="text-xs bg-gray-100 text-slate-700 border border-gray-200">
-                          {worker.worker_type === 'non-marking' ? '🏢' : '🔧'} {worker.worker_type}
+                          {worker.worker_type === 'non_marking' ? '🏢' : '🔧'} {worker.worker_type}
                         </Badge>
                         {worker.worker_type === 'casual' && worker.portfolios && (
                           <span className="text-xs text-slate-700 font-semibold">
                             {worker.portfolios.portfolio_name}
                           </span>
                         )}
-                        {worker.worker_type === 'non-marking' && worker.positions && (
+                        {worker.worker_type === 'non_marking' && worker.positions && (
                           <span className="text-xs text-slate-700 font-semibold">
                             {worker.positions.position_name}
                           </span>

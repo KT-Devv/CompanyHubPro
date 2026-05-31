@@ -1,10 +1,20 @@
 import { useLocation } from 'wouter';
+import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Home, AlertCircle } from 'lucide-react';
 
 export default function NotFound() {
   const [, setLocation] = useLocation();
+  const { userRole } = useAuth();
+
+  const getDefaultPath = () => {
+    if (['ceo', 'hr', 'project_manager', 'system_manager', 'finance'].includes(userRole || '')) return '/welcome-management';
+    if (userRole === 'secretary') return '/welcome-secretary';
+    if (userRole === 'supervisor') return '/welcome-supervisor';
+    if (userRole === 'store_manager' || userRole === 'logistics_manager') return '/store-logistics';
+    return '/login';
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -21,7 +31,7 @@ export default function NotFound() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={() => setLocation('/attendance')} className="w-full" data-testid="button-go-home">
+          <Button onClick={() => setLocation(getDefaultPath())} className="w-full" data-testid="button-go-home">
             <Home className="mr-2 h-4 w-4" />
             Go to Dashboard
           </Button>

@@ -60,8 +60,8 @@ export default function AttendanceManagementPage() {
       return data as any[];
     },
     // Auto-refresh attendance records for management view
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 
@@ -226,7 +226,7 @@ export default function AttendanceManagementPage() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="casual">Casual</SelectItem>
-                <SelectItem value="non-marking">Non-Marking</SelectItem>
+                <SelectItem value="non_marking">Non-Marking</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={setFilterStatus}>

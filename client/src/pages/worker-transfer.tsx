@@ -16,7 +16,7 @@ export default function WorkerTransferPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: workers } = useQuery({
-    queryKey: ['/api/workers'],
+    queryKey: ['workers'],
     queryFn: async () => {
       const { data, error } = await supabase.from('workers').select('id,name,site_id,worker_type,account_location,account_number').order('name');
       if (error) throw error;
@@ -25,7 +25,7 @@ export default function WorkerTransferPage() {
   });
 
   const { data: sites } = useQuery({
-    queryKey: ['/api/sites'],
+    queryKey: ['sites'],
     queryFn: async () => {
       const { data, error } = await supabase.from('sites').select('*').order('site_name');
       if (error) throw error;
@@ -46,36 +46,35 @@ export default function WorkerTransferPage() {
   const transferMutation = useMutation({
     mutationFn: async () => {
       if (!selectedWorker || !toSite) throw new Error('Select worker and destination site');
-      // Build request payload and call server API
-      const payload: any = {
-        worker_id: selectedWorker,
-        to_site_id: toSite,
-        effective_date: effectiveDate,
-        notes: notes || null,
-      };
 
-      // if casual and new account provided, include it
       if (selectedWorkerDetails?.worker_type === 'casual') {
-        if (newAccountNumber) {
-          payload.new_account_number = newAccountNumber;
-          payload.new_account_location = newAccountLocation || toSite;
+        if (!newAccountNumber || !newAccountLocation) {
+          throw new Error('Casual workers require a new account location and number upon transfer.');
         }
       }
 
-      const res = await fetch('/api/worker-transfers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': supabase.auth.user()?.id || '' },
-        body: JSON.stringify(payload),
+      const { error: insertError } = await supabase.from('worker_transfers').insert({
+        worker_id: selectedWorker,
+        from_site_id: selectedWorkerDetails?.site_id,
+        to_site_id: toSite,
+        effective_date: effectiveDate,
+        notes: notes || null
       });
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || 'Transfer failed');
+      if (insertError) throw insertError;
+
+      const updatePayload: any = { site_id: toSite };
+      if (selectedWorkerDetails?.worker_type === 'casual') {
+        updatePayload.account_number = newAccountNumber;
+        updatePayload.account_location = newAccountLocation;
       }
+
+      const { error: updateError } = await supabase.from('workers').update(updatePayload).eq('id', selectedWorker);
+      if (updateError) throw updateError;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/workers'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/sites'] });
+      queryClient.invalidateQueries({ queryKey: ['workers'] });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
       toast({ title: 'Success', description: 'Worker transferred and account cleared (if casual)' });
     },
     onError: (err: any) => {

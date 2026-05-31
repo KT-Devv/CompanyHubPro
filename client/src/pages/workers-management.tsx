@@ -273,7 +273,7 @@ export default function WorkersManagementPage() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="casual">Casual</SelectItem>
-                <SelectItem value="non-marking">Non-Marking</SelectItem>
+                <SelectItem value="non_marking">Non-Marking</SelectItem>
               </SelectContent>
             </Select>
             <Select value={filterSite} onValueChange={setFilterSite}>
@@ -547,7 +547,7 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
       name: form.name,
       worker_type: form.worker_type,
       portfolio_id: form.worker_type === 'casual' ? (form.portfolio_id || null) : null,
-      position_id: form.worker_type === 'non-marking' ? (form.position_id || null) : null,
+      position_id: form.worker_type === 'non_marking' ? (form.position_id || null) : null,
       site_id: form.site_id || null,
       phone_number: form.phone_number,
       national_id: form.national_id,
@@ -580,7 +580,7 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="casual">Casual</SelectItem>
-              <SelectItem value="non-marking">Non-Marking</SelectItem>
+              <SelectItem value="non_marking">Non-Marking</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -633,7 +633,7 @@ function WorkerForm({ initial, portfolios, positions, sites, onSubmit, onCancel 
             </div>
           </>
         )}
-        {form.worker_type === 'non-marking' && (
+        {form.worker_type === 'non_marking' && (
           <div>
             <Label htmlFor="position">Position</Label>
             <Select value={form.position_id} onValueChange={(v) => setForm({ ...form, position_id: v })}>

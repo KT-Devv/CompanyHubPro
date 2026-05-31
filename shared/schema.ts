@@ -1,11 +1,11 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, date, pgEnum, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, date, pgEnum, unique, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Enums
-export const userRoleEnum = pgEnum("user_role", ["owner", "ceo", "hr", "finance", "system_manager", "project_manager", "supervisor", "logistics_manager", "store_manager", "secretary"]);
-export const workerTypeEnum = pgEnum("worker_type", ["casual", "non-marking"]);
+export const userRoleEnum = pgEnum("user_role", ["ceo", "hr", "finance", "system_manager", "project_manager", "supervisor", "logistics_manager", "store_manager", "secretary"]);
+export const workerTypeEnum = pgEnum("worker_type", ["casual", "non_marking"]);
 export const attendanceStatusEnum = pgEnum("attendance_status", ["Present", "Absent", "Leave", "Half Day"]);
 export const goodsLogTypeEnum = pgEnum("goods_log_type", ["sent", "received"]);
 export const goodsLogStatusEnum = pgEnum("goods_log_status", ["pending", "matched", "error"]);
@@ -22,11 +22,19 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Sector table
+export const sectors = pgTable("Sector", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sectorName: text("sector_name").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Sites table
 export const sites = pgTable("sites", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   siteName: text("site_name").notNull(),
-  isMain: integer("is_main").default(0).notNull(),
+  sectorId: varchar("sector_id").references(() => sectors.id),
+  sector: varchar("sector").references(() => sectors.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -34,7 +42,6 @@ export const sites = pgTable("sites", {
 export const portfolios = pgTable("portfolios", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   portfolioName: text("portfolio_name").notNull(),
-  ratio: integer("ratio").notNull(),
   rate: integer("rate").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -43,7 +50,7 @@ export const portfolios = pgTable("portfolios", {
 export const positions = pgTable("positions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   positionName: text("position_name").notNull(),
-  rate: integer("rate").notNull(),
+  rate: integer("rate"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -155,6 +162,29 @@ export const loans = pgTable("loans", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Worker Transfers table
+export const workerTransfers = pgTable("worker_transfers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").references(() => workers.id).notNull(),
+  fromSiteId: varchar("from_site_id").references(() => sites.id),
+  toSiteId: varchar("to_site_id").references(() => sites.id),
+  effectiveDate: date("effective_date").notNull(),
+  clearedAccount: boolean("cleared_account").default(false),
+  oldAccountNumber: varchar("old_account_number"),
+  newAccountNumber: varchar("new_account_number"),
+  notes: text("notes"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertWorkerTransferSchema = createInsertSchema(workerTransfers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertWorkerTransfer = z.infer<typeof insertWorkerTransferSchema>;
+export type WorkerTransfer = typeof workerTransfers.$inferSelect;
+
 // Deductions table
 export const deductions = pgTable("deductions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -163,6 +193,25 @@ export const deductions = pgTable("deductions", {
   month: varchar("month").notNull(), // Format: YYYY-MM
   date: date("date").notNull(),
   notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Salary Schedules table
+export const salarySchedules = pgTable("salary_schedules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workerId: varchar("worker_id").references(() => workers.id).notNull(),
+  siteId: varchar("site_id").references(() => sites.id),
+  portfolioId: varchar("portfolio_id"),
+  positionId: varchar("position_id"),
+  month: integer("month").notNull(),
+  year: integer("year").notNull(),
+  daysPresent: integer("days_present").default(0),
+  rate: integer("rate").default(0),
+  accountLocation: varchar("account_location"),
+  accountNumber: varchar("account_number"),
+  grossAmount: integer("gross_amount").default(0),
+  deductions: jsonb("deductions").default('{}'),
+  netAmount: integer("net_amount").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -236,6 +285,16 @@ export const insertDeductionSchema = createInsertSchema(deductions).omit({
   createdAt: true,
 });
 
+export const insertSalaryScheduleSchema = createInsertSchema(salarySchedules).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSectorSchema = createInsertSchema(sectors).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -275,6 +334,12 @@ export type Loan = typeof loans.$inferSelect;
 
 export type InsertDeduction = z.infer<typeof insertDeductionSchema>;
 export type Deduction = typeof deductions.$inferSelect;
+
+export type InsertSalarySchedule = z.infer<typeof insertSalaryScheduleSchema>;
+export type SalarySchedule = typeof salarySchedules.$inferSelect;
+
+export type InsertSector = z.infer<typeof insertSectorSchema>;
+export type Sector = typeof sectors.$inferSelect;
 
 // Login Schema
 export const loginSchema = z.object({
