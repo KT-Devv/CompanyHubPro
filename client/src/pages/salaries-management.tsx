@@ -56,7 +56,7 @@ export default function SalariesManagementPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('workers')
-        .select('*, portfolios(portfolio_name, rate), positions(position_name, rate), sites(site_name)')
+        .select('*, portfolios(portfolio_name, rate), positions(position_name, rate), sites!site_id(site_name)')
         .order('name');
       if (error) throw error;
       return data as any[];

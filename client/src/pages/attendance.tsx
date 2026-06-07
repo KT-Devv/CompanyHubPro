@@ -41,7 +41,7 @@ export default function AttendancePage() {
   const { data: workers, isLoading: loadingWorkers } = useQuery({
     queryKey: ['/api/workers', userRole, userSiteId],
     queryFn: async () => {
-      let query = supabase.from('workers').select('*, portfolios(portfolio_name, id), positions(position_name, id), sites(site_name, id)');
+      let query = supabase.from('workers').select('*, portfolios(portfolio_name, id), positions(position_name, id), sites!site_id(site_name, id)');
 
       if (isSecretary) {
         query = query.eq('worker_type', 'non_marking');
@@ -243,7 +243,7 @@ export default function AttendancePage() {
     try {
       const { data, error } = await supabase
         .from('workers')
-        .select('*, sites(site_name, id)')
+        .select('*, sites!site_id(site_name, id)')
         .ilike('name', `%${crossSiteQuery}%`)
         .neq('site_id', userSiteId);
 

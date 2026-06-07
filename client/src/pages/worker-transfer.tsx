@@ -57,11 +57,7 @@ export default function WorkerTransferPage() {
         worker_id: selectedWorker,
         from_site_id: selectedWorkerDetails?.site_id,
         to_site_id: toSite,
-<<<<<<< HEAD
         effective_date: effectiveDate,
-=======
-        transfer_date: effectiveDate,
->>>>>>> 73b9094af9e2160a5992f480ddc32790a0463cb0
         notes: notes || null
       });
 

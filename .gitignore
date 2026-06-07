@@ -8,3 +8,4 @@ client/.env
 .env.local
 client/.env.example
 
+*.env
