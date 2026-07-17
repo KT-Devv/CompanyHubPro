@@ -3,8 +3,8 @@
 CREATE TABLE IF NOT EXISTS worker_transfers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   worker_id UUID REFERENCES workers(id) NOT NULL,
-  from_site_id UUID,
-  to_site_id UUID,
+  from_site_id UUID REFERENCES sites(id),
+  to_site_id UUID REFERENCES sites(id),
   effective_date DATE NOT NULL,
   cleared_account BOOLEAN DEFAULT false,
   old_account_number VARCHAR,

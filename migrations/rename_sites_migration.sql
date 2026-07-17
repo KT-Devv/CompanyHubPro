@@ -2,9 +2,16 @@
 -- Also update comments to reflect new naming (allocated site vs current site)
 -- Run this in your Supabase SQL Editor
 
--- Step 1: Rename the column
-ALTER TABLE workers 
-RENAME COLUMN permanent_site_id TO allocated_site_id;
+-- Step 1: Rename the column (only if permanent_site_id exists)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'workers' AND column_name = 'permanent_site_id'
+  ) THEN
+    ALTER TABLE workers RENAME COLUMN permanent_site_id TO allocated_site_id;
+  END IF;
+END$$;
 
 -- Step 2: Rename the index if it exists
 DROP INDEX IF EXISTS idx_workers_permanent_site;

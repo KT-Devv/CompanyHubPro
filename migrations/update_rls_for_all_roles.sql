@@ -13,7 +13,7 @@ BEGIN
         SELECT policyname, tablename 
         FROM pg_policies 
         WHERE schemaname = 'public' 
-          AND tablename IN ('users', 'sites', 'portfolios', 'positions', 'workers', 'stores', 'inventory', 'goods_log', 'invoices', 'attendance', 'salary_advances', 'loans')
+          AND tablename IN ('users', 'sites', 'sectors', 'portfolios', 'positions', 'workers', 'stores', 'inventory', 'goods_log', 'invoices', 'attendance', 'salary_advances', 'loans', 'deductions', 'salary_schedules', 'worker_transfers')
     ) LOOP
         EXECUTE format('DROP POLICY IF EXISTS %I ON %I', r.policyname, r.tablename);
     END LOOP;
@@ -22,6 +22,7 @@ END $$;
 -- 2. Make sure RLS is enabled on all tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sectors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE portfolios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE positions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workers ENABLE ROW LEVEL SECURITY;
@@ -31,7 +32,10 @@ ALTER TABLE goods_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE salary_advances ENABLE ROW LEVEL SECURITY;
-ALTER TABLE loansENABLE ROW LEVEL SECURITY;
+ALTER TABLE loans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deductions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salary_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE worker_transfers ENABLE ROW LEVEL SECURITY;
 
 -- 3. USERS Table
 -- Everyone can read all user profiles (needed for picking who marked attendance, etc.)
@@ -120,6 +124,36 @@ CREATE POLICY "Logistics Write Access" ON goods_log FOR ALL TO authenticated USI
 );
 CREATE POLICY "Logistics Write Access" ON invoices FOR ALL TO authenticated USING (
   EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
+);
+
+-- 9. SECTORS Table
+CREATE POLICY "Anyone can view sectors" ON sectors FOR SELECT TO authenticated USING (true);
+CREATE POLICY "System managers can modify sectors" ON sectors FOR ALL TO authenticated USING (
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
+);
+
+-- 10. DEDUCTIONS Table
+CREATE POLICY "Finance and Global Read Access" ON deductions FOR SELECT TO authenticated USING (
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager'))
+);
+CREATE POLICY "Finance managers can modify deductions" ON deductions FOR ALL TO authenticated USING (
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr', 'system_manager'))
+);
+
+-- 11. SALARY SCHEDULES Table
+CREATE POLICY "Finance and HR can read salary schedules" ON salary_schedules FOR SELECT TO authenticated USING (
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr', 'system_manager'))
+);
+CREATE POLICY "Finance and HR can modify salary schedules" ON salary_schedules FOR ALL TO authenticated USING (
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr', 'system_manager'))
+);
+
+-- 12. WORKER TRANSFERS Table
+CREATE POLICY "Managers can view transfers" ON worker_transfers FOR SELECT TO authenticated USING (
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr', 'project_manager'))
+);
+CREATE POLICY "Managers can modify transfers" ON worker_transfers FOR ALL TO authenticated USING (
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
 );
 
 COMMIT;

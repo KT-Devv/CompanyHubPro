@@ -71,12 +71,12 @@ CHECK (site_id IS NOT NULL);
 -- Ensure worker_type is valid
 ALTER TABLE workers 
 ADD CONSTRAINT check_worker_type_valid 
-CHECK (worker_type IN ('office', 'grounds'));
+CHECK (worker_type IN ('casual', 'non_marking'));
 
 -- Ensure attendance status is valid
 ALTER TABLE attendance 
 ADD CONSTRAINT check_attendance_status_valid 
-CHECK (status IN ('Present', 'Absent', 'Leave'));
+CHECK (status = ANY(enum_range(NULL::attendance_status)));
 
 -- ============================================================================
 -- PHASE 4: VERIFICATION & ROLLBACK HELPERS

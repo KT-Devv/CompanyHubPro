@@ -29,10 +29,10 @@ ALTER TABLE salary_schedules ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Finance and HR can manage salary schedules" ON salary_schedules
   FOR ALL TO authenticated USING (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('finance_officer','hr','system_manager')
+      SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('finance','hr','system_manager')
     )
   ) WITH CHECK (
     EXISTS (
-      SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('finance_officer','hr','system_manager')
+      SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('finance','hr','system_manager')
     )
   );

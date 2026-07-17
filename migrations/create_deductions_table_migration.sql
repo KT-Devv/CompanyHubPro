@@ -22,5 +22,5 @@ CREATE POLICY "Finance and Global Read Access" ON deductions FOR SELECT TO authe
 );
 
 CREATE POLICY "Finance managers can modify deductions" ON deductions FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('finance', 'hr', 'system_manager'))
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr', 'system_manager'))
 );

@@ -5,25 +5,36 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create ENUM types
-CREATE TYPE user_role AS ENUM ('ceo', 'hr', 'project_manager', 'supervisor', 'secretary');
-CREATE TYPE worker_type AS ENUM ('office', 'grounds');
+CREATE TYPE user_role AS ENUM ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'supervisor', 'logistics_manager', 'store_manager', 'secretary');
+CREATE TYPE worker_type AS ENUM ('casual', 'non_marking');
 CREATE TYPE attendance_status AS ENUM ('Present', 'Absent', 'Leave');
 CREATE TYPE goods_log_type AS ENUM ('sent', 'received');
+CREATE TYPE goods_log_status AS ENUM ('pending', 'matched', 'error');
 CREATE TYPE invoice_type AS ENUM ('purchase', 'sale');
 
 -- Sites table
 CREATE TABLE sites (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   site_name TEXT NOT NULL,
-  is_main INTEGER DEFAULT 0 NOT NULL,
+  sector_id UUID,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
+
+-- Sectors table
+CREATE TABLE sectors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sector_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+-- Add FK for sites.sector_id after sectors table exists
+ALTER TABLE sites ADD CONSTRAINT fk_sites_sector_id 
+  FOREIGN KEY (sector_id) REFERENCES sectors(id);
 
 -- Portfolios table (for grounds workers)
 CREATE TABLE portfolios (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   portfolio_name TEXT NOT NULL,
-  ratio INTEGER NOT NULL,
   rate INTEGER NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
@@ -32,7 +43,7 @@ CREATE TABLE portfolios (
 CREATE TABLE positions (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   position_name TEXT NOT NULL,
-  rate INTEGER NOT NULL,
+  rate INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
@@ -43,11 +54,11 @@ CREATE TABLE users (
   full_name TEXT NOT NULL,
   role user_role NOT NULL,
   site_id UUID REFERENCES sites(id),
+  store_id UUID,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
 -- Workers table
--- Note: site_id is NOT stored here - sites are only tracked in attendance records when supervisors mark attendance
 CREATE TABLE workers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT,
@@ -55,6 +66,7 @@ CREATE TABLE workers (
   worker_type worker_type,
   portfolio_id UUID REFERENCES portfolios(id),
   position_id UUID REFERENCES positions(id),
+  site_id UUID REFERENCES sites(id),
   date_of_employment DATE,
   phone_number TEXT,
   national_id TEXT,
@@ -63,9 +75,9 @@ CREATE TABLE workers (
   cp_relation TEXT,
   hometown TEXT,
   current_location TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  CONSTRAINT workers_portfolio_id_fkey FOREIGN KEY (portfolio_id) REFERENCES portfolios(id),
-  CONSTRAINT workers_position_id_fkey FOREIGN KEY (position_id) REFERENCES positions(id)
+  account_location UUID REFERENCES sites(id),
+  account_number TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
 -- Stores table
@@ -82,6 +94,7 @@ CREATE TABLE inventory (
   store_id UUID REFERENCES stores(id) NOT NULL,
   item_name TEXT NOT NULL,
   quantity INTEGER NOT NULL DEFAULT 0,
+  remarks TEXT,
   last_updated TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
@@ -93,6 +106,9 @@ CREATE TABLE goods_log (
   store_to UUID REFERENCES stores(id),
   quantity INTEGER NOT NULL,
   type goods_log_type NOT NULL,
+  status goods_log_status NOT NULL DEFAULT 'pending',
+  reference_id VARCHAR,
+  remarks TEXT,
   date TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
@@ -103,6 +119,7 @@ CREATE TABLE invoices (
   store_id UUID REFERENCES stores(id) NOT NULL,
   item_id UUID REFERENCES inventory(id) NOT NULL,
   amount INTEGER NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
   supplier_name TEXT NOT NULL,
   type invoice_type NOT NULL,
   date TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -348,13 +365,13 @@ CREATE POLICY "Management can insert loans" ON loans
 -- Insert sample data
 
 -- Sample sites
-INSERT INTO sites (site_name, is_main) VALUES
-  ('Main Office', 1),
-  ('Construction Site A', 0),
-  ('Construction Site B', 0);
+INSERT INTO sites (site_name) VALUES
+  ('Main Office'),
+  ('Construction Site A'),
+  ('Construction Site B');
 
 -- Sample portfolios (for grounds workers)
-INSERT INTO portfolios (portfolio_name, ratio) VALUES
+INSERT INTO portfolios (portfolio_name, rate) VALUES
   ('Mason', 100),
   ('Carpenter', 90),
   ('Laborer', 70),

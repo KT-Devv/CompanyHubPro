@@ -8,9 +8,17 @@ DROP INDEX IF EXISTS idx_workers_temporary_site;
 -- Step 2: Drop the foreign key constraint if it exists
 ALTER TABLE workers DROP CONSTRAINT IF EXISTS workers_temporary_site_id_fkey;
 
--- Step 3: Drop the temporary_site_id column
+-- Step 3: Drop the temporary_site_id column (only if it exists)
 ALTER TABLE workers DROP COLUMN IF EXISTS temporary_site_id;
 
--- Step 4: Update comment
-COMMENT ON COLUMN workers.permanent_site_id IS 'Permanent site allocation for the worker. For helpers portfolio, this is the only site. Temporary site is stored in attendance table when marking attendance.';
+-- Step 4: Update comment (only if permanent_site_id exists)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'workers' AND column_name = 'permanent_site_id'
+  ) THEN
+    COMMENT ON COLUMN workers.permanent_site_id IS 'Permanent site allocation for the worker. For helpers portfolio, this is the only site. Temporary site is stored in attendance table when marking attendance.';
+  END IF;
+END$$;
 
