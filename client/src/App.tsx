@@ -20,6 +20,7 @@ import SystemManagementPage from "@/pages/system-management";
 import WelcomeManagement from "@/pages/welcome-management";
 import WelcomeSecretary from "@/pages/welcome-secretary";
 import WelcomeSupervisor from "@/pages/welcome-supervisor";
+import WorkerTransferPage from "@/pages/worker-transfer";
 import { Loader2, Calendar } from "lucide-react";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
@@ -169,6 +170,12 @@ function Router() {
         <ProtectedRoute
           component={SystemManagementPage}
           allowedRoles={['ceo', 'hr', 'system_manager']}
+        />
+      </Route>
+      <Route path="/worker-transfer">
+        <ProtectedRoute
+          component={WorkerTransferPage}
+          allowedRoles={['ceo', 'hr', 'system_manager', 'project_manager']}
         />
       </Route>
       <Route component={NotFound} />

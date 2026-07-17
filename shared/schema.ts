@@ -23,7 +23,7 @@ export const users = pgTable("users", {
 });
 
 // Sector table
-export const sectors = pgTable("Sector", {
+export const sectors = pgTable("sectors", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sectorName: text("sector_name").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -34,7 +34,6 @@ export const sites = pgTable("sites", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   siteName: text("site_name").notNull(),
   sectorId: varchar("sector_id").references(() => sectors.id),
-  sector: varchar("sector").references(() => sectors.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

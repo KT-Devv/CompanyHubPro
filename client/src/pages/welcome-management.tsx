@@ -12,6 +12,8 @@ export default function WelcomeManagement() {
     ceo: 'CEO',
     hr: 'HR Manager',
     project_manager: 'Project Manager',
+    system_manager: 'System Manager',
+    finance: 'Finance Officer',
   };
 
   return (
