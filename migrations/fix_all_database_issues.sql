@@ -1,7 +1,11 @@
 -- ============================================================
 -- CATCH-UP MIGRATION: Fix all database issues
--- Run this ONCE in Supabase SQL Editor
--- Safe to run on existing databases (uses IF NOT EXISTS)
+-- Run in Supabase SQL Editor. Safe to re-run (IF NOT EXISTS / idempotent).
+--
+-- This script only fixes SCHEMA. It deliberately does not touch RLS policies:
+-- run update_rls_for_all_roles.sql AFTER it, which is the single source of
+-- truth for policies. (Two scripts each defining the full policy set drifted
+-- apart, and both shipped a policy letting any user promote themselves to CEO.)
 -- ============================================================
 
 BEGIN;
@@ -11,6 +15,24 @@ BEGIN;
 -- ============================================================
 
 -- Add missing values to user_role enum
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE e.enumlabel = 'ceo' AND t.typname = 'user_role') THEN
+    ALTER TYPE user_role ADD VALUE 'ceo';
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE e.enumlabel = 'project_manager' AND t.typname = 'user_role') THEN
+    ALTER TYPE user_role ADD VALUE 'project_manager';
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE e.enumlabel = 'secretary' AND t.typname = 'user_role') THEN
+    ALTER TYPE user_role ADD VALUE 'secretary';
+  END IF;
+END $$;
+
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE e.enumlabel = 'finance' AND t.typname = 'user_role') THEN
     ALTER TYPE user_role ADD VALUE 'finance';
@@ -113,6 +135,16 @@ CREATE TABLE IF NOT EXISTS sectors (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
+-- Sites may already carry a sector_id from before the sectors table existed.
+-- Adding the FK over those orphaned ids fails, so give each one a placeholder
+-- sector (same id, so every site keeps its grouping). Rename them afterwards:
+--   select id, sector_name from sectors where sector_name like 'Unnamed sector%';
+INSERT INTO sectors (id, sector_name)
+SELECT DISTINCT s.sector_id, 'Unnamed sector ' || left(s.sector_id::text, 8)
+FROM sites s
+WHERE s.sector_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM sectors x WHERE x.id = s.sector_id);
+
 -- Add FK for sites.sector_id if not already present
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_sites_sector_id') THEN
@@ -165,6 +197,14 @@ CREATE TABLE IF NOT EXISTS salary_schedules (
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
+-- Tables created here start with RLS on and NO policies (deny everything)
+-- until update_rls_for_all_roles.sql runs. A table left without RLS is fully
+-- readable and writable with the public anon key.
+ALTER TABLE sectors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE worker_transfers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deductions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salary_schedules ENABLE ROW LEVEL SECURITY;
+
 -- ============================================================
 -- 4. ADD MISSING INDEXES
 -- ============================================================
@@ -200,31 +240,73 @@ END $$;
 ALTER TABLE portfolios DROP COLUMN IF EXISTS ratio;
 
 -- ============================================================
--- 7. DROP duplicate FK constraints on workers
+-- 7. FOREIGN KEYS ON workers: exactly one per column
+--
+-- PostgREST needs a foreign key to embed portfolios(...) / positions(...) /
+-- sites!site_id(...) in the worker queries, and errors out if a column has
+-- two of them. So: drop true duplicates only (same column, same target table),
+-- then re-add any FK that is missing. (An earlier version of this script
+-- dropped workers_portfolio_id_fkey / workers_position_id_fkey outright, which
+-- removed the only FK and broke every worker page; re-running fixes that.)
 -- ============================================================
 
-ALTER TABLE workers DROP CONSTRAINT IF EXISTS workers_portfolio_id_fkey;
-ALTER TABLE workers DROP CONSTRAINT IF EXISTS workers_position_id_fkey;
-
--- ============================================================
--- 8. RESET ALL RLS POLICIES
--- This completely replaces all policies with the correct set.
--- ============================================================
-
--- Drop ALL existing policies on our tables
 DO $$
 DECLARE
-    r RECORD;
+  r RECORD;
 BEGIN
-    FOR r IN (
-        SELECT policyname, tablename
-        FROM pg_policies
-        WHERE schemaname = 'public'
-          AND tablename IN ('users', 'sites', 'sectors', 'portfolios', 'positions', 'workers', 'stores', 'inventory', 'goods_log', 'invoices', 'attendance', 'salary_advances', 'loans', 'deductions', 'salary_schedules', 'worker_transfers')
-    ) LOOP
-        EXECUTE format('DROP POLICY IF EXISTS %I ON %I', r.policyname, r.tablename);
-    END LOOP;
+  FOR r IN (
+    SELECT conname
+    FROM (
+      SELECT c.conname,
+             row_number() OVER (PARTITION BY c.conkey, c.confrelid ORDER BY c.conname) AS rn
+      FROM pg_constraint c
+      WHERE c.contype = 'f' AND c.conrelid = 'public.workers'::regclass
+    ) fks
+    WHERE rn > 1
+  ) LOOP
+    EXECUTE format('ALTER TABLE public.workers DROP CONSTRAINT %I', r.conname);
+  END LOOP;
 END $$;
+
+DO $$
+DECLARE
+  spec RECORD;
+BEGIN
+  FOR spec IN (
+    SELECT * FROM (VALUES
+      ('portfolio_id',     'portfolios', 'workers_portfolio_id_fkey'),
+      ('position_id',      'positions',  'workers_position_id_fkey'),
+      ('site_id',          'sites',      'workers_site_id_fkey'),
+      ('account_location', 'sites',      'workers_account_location_fkey')
+    ) AS t(col, ref_table, cname)
+  ) LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_constraint c
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+      WHERE c.contype = 'f'
+        AND c.conrelid = 'public.workers'::regclass
+        AND c.confrelid = ('public.' || spec.ref_table)::regclass
+        AND a.attname = spec.col
+    ) THEN
+      -- NOT VALID: enforced for new/changed rows but existing rows aren't
+      -- checked, so leftover orphans (e.g. a worker pointing at a deleted
+      -- portfolio) can't abort the whole migration. PostgREST still uses the
+      -- constraint for joins. Find orphans with a query like
+      --   select id from workers where portfolio_id not in (select id from portfolios);
+      -- fix them, then: alter table workers validate constraint <name>;
+      EXECUTE format(
+        'ALTER TABLE public.workers ADD CONSTRAINT %I FOREIGN KEY (%I) REFERENCES public.%I(id) NOT VALID',
+        spec.cname, spec.col, spec.ref_table
+      );
+    END IF;
+  END LOOP;
+END $$;
+
+-- ============================================================
+-- 8. ENABLE ROW LEVEL SECURITY ON EVERY TABLE
+-- Policies live in update_rls_for_all_roles.sql: run that next.
+-- ============================================================
 
 -- Enable RLS on all tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -243,119 +325,4 @@ ALTER TABLE loans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deductions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE salary_schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE worker_transfers ENABLE ROW LEVEL SECURITY;
-
--- USERS
-CREATE POLICY "Anyone can view users" ON users FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Users can update own profile" ON users FOR UPDATE TO authenticated USING (auth.uid() = id);
-
--- SITES
-CREATE POLICY "Anyone can view metadata" ON sites FOR SELECT TO authenticated USING (true);
-CREATE POLICY "System managers can modify sites" ON sites FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
-
--- SECTORS
-CREATE POLICY "Anyone can view sectors" ON sectors FOR SELECT TO authenticated USING (true);
-CREATE POLICY "System managers can modify sectors" ON sectors FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
-
--- PORTFOLIOS
-CREATE POLICY "Anyone can view portfolios" ON portfolios FOR SELECT TO authenticated USING (true);
-CREATE POLICY "System managers can modify portfolios" ON portfolios FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
-
--- POSITIONS
-CREATE POLICY "Anyone can view positions" ON positions FOR SELECT TO authenticated USING (true);
-CREATE POLICY "System managers can modify positions" ON positions FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
-
--- WORKERS
-CREATE POLICY "Broad Read Access to Workers" ON workers FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'supervisor', 'secretary', 'store_manager'))
-);
-CREATE POLICY "HR and System can modify workers" ON workers FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'system_manager'))
-);
-
--- STORES
-CREATE POLICY "Anyone can view stores" ON stores FOR SELECT TO authenticated USING (true);
-CREATE POLICY "System managers can modify stores" ON stores FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
-
--- INVENTORY
-CREATE POLICY "Logistics Read Access" ON inventory FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
-);
-CREATE POLICY "Logistics Write Access" ON inventory FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
-);
-
--- GOODS LOG
-CREATE POLICY "Logistics Read Access" ON goods_log FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
-);
-CREATE POLICY "Logistics Write Access" ON goods_log FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
-);
-
--- INVOICES
-CREATE POLICY "Logistics Read Access" ON invoices FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
-);
-CREATE POLICY "Logistics Write Access" ON invoices FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
-);
-
--- ATTENDANCE
-CREATE POLICY "Broad Read Access to Attendance" ON attendance FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'supervisor', 'secretary'))
-);
-CREATE POLICY "Supervisors and HR can modify attendance" ON attendance FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'supervisor', 'secretary', 'store_manager'))
-);
-
--- SALARY ADVANCES
-CREATE POLICY "Finance Read Access" ON salary_advances FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager'))
-);
-CREATE POLICY "Finance Write Access" ON salary_advances FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr'))
-);
-
--- LOANS
-CREATE POLICY "Finance Read Access" ON loans FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager'))
-);
-CREATE POLICY "Finance Write Access" ON loans FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr'))
-);
-
--- DEDUCTIONS
-CREATE POLICY "Finance Read Access" ON deductions FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager'))
-);
-CREATE POLICY "Finance Write Access" ON deductions FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr', 'system_manager'))
-);
-
--- SALARY SCHEDULES
-CREATE POLICY "Finance Read Access" ON salary_schedules FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr', 'system_manager'))
-);
-CREATE POLICY "Finance Write Access" ON salary_schedules FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr', 'system_manager'))
-);
-
--- WORKER TRANSFERS
-CREATE POLICY "Managers can view transfers" ON worker_transfers FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr', 'project_manager'))
-);
-CREATE POLICY "Managers can modify transfers" ON worker_transfers FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
-
 COMMIT;

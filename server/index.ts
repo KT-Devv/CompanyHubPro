@@ -49,6 +49,13 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
+  // No API is served from here (the client talks to Supabase directly). Answer
+  // unknown /api paths with a JSON 404 instead of letting them fall through to
+  // the SPA catch-all, which would return index.html with a 200.
+  app.use("/api", (_req: Request, res: Response) => {
+    res.status(404).json({ message: "Not found" });
+  });
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

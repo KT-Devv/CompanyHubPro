@@ -209,7 +209,7 @@ export const salarySchedules = pgTable("salary_schedules", {
   accountLocation: varchar("account_location"),
   accountNumber: varchar("account_number"),
   grossAmount: integer("gross_amount").default(0),
-  deductions: jsonb("deductions").default('{}'),
+  deductions: jsonb("deductions").default(sql`'{}'::jsonb`),
   netAmount: integer("net_amount").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

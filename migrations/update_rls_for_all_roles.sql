@@ -1,25 +1,56 @@
--- Comprehensive RLS Update for CompanyHubPro Organogram
--- This script completely resets and updates the Row Level Security (RLS) policies
--- to support the new roles: ceo, finance, system_manager, logistics_manager, store_manager, etc.
+-- ============================================================
+-- CANONICAL Row Level Security policies for CompanyHubPro
+--
+-- The browser talks to Supabase directly with the public anon key, so these
+-- policies are the ONLY real access control; the role checks in the React app
+-- only decide what to show.
+--
+-- Safe to re-run: it drops every policy on the app tables and recreates the
+-- set below. Run it LAST, after any schema migration
+-- (supabase-setup.sql -> fix_all_database_issues.sql -> this file).
+-- ============================================================
 
 BEGIN;
 
--- 1. Safely drop ALL existing RLS policies on our public tables
-DO $$ 
+-- ------------------------------------------------------------
+-- 1. Helpers
+--
+-- SECURITY DEFINER so looking up the caller's own profile is not itself
+-- subject to RLS. Returning text (not the enum) means the policies below never
+-- reference enum labels directly, so they still create fine in the same
+-- transaction that added a new enum value.
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.auth_role() RETURNS text
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$ SELECT role::text FROM public.users WHERE id = auth.uid() $$;
+
+CREATE OR REPLACE FUNCTION public.auth_store_id() RETURNS uuid
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+-- via text so it also works if an older database stored store_id as varchar
+AS $$ SELECT NULLIF(store_id::text, '')::uuid FROM public.users WHERE id = auth.uid() $$;
+
+REVOKE ALL ON FUNCTION public.auth_role() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.auth_store_id() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.auth_role() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.auth_store_id() TO authenticated;
+
+-- ------------------------------------------------------------
+-- 2. Drop every existing policy on our tables, then make sure RLS is on
+-- ------------------------------------------------------------
+DO $$
 DECLARE
     r RECORD;
 BEGIN
     FOR r IN (
-        SELECT policyname, tablename 
-        FROM pg_policies 
-        WHERE schemaname = 'public' 
+        SELECT policyname, tablename
+        FROM pg_policies
+        WHERE schemaname = 'public'
           AND tablename IN ('users', 'sites', 'sectors', 'portfolios', 'positions', 'workers', 'stores', 'inventory', 'goods_log', 'invoices', 'attendance', 'salary_advances', 'loans', 'deductions', 'salary_schedules', 'worker_transfers')
     ) LOOP
         EXECUTE format('DROP POLICY IF EXISTS %I ON %I', r.policyname, r.tablename);
     END LOOP;
 END $$;
 
--- 2. Make sure RLS is enabled on all tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sectors ENABLE ROW LEVEL SECURITY;
@@ -37,123 +68,182 @@ ALTER TABLE deductions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE salary_schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE worker_transfers ENABLE ROW LEVEL SECURITY;
 
--- 3. USERS Table
--- Everyone can read all user profiles (needed for picking who marked attendance, etc.)
-CREATE POLICY "Anyone can view users" ON users FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Users can update own profile" ON users FOR UPDATE TO authenticated USING (auth.uid() = id);
+-- ------------------------------------------------------------
+-- 3. USERS
+--
+-- Read-only from the client. There is deliberately NO update/insert/delete
+-- policy: a "users can update their own profile" policy lets any signed-in user
+-- run  update users set role = 'ceo' where id = auth.uid()  from the browser
+-- console. Profiles (role, site, store) are managed in the Supabase dashboard.
+-- ------------------------------------------------------------
+CREATE POLICY "Authenticated users can view users" ON users
+  FOR SELECT TO authenticated USING (true);
 
--- 4. READ-ONLY METADATA TABLES (sites, portfolios, positions, stores)
--- Everyone can read them. Only system_manager / ceo / hr can write to them.
-CREATE POLICY "Anyone can view metadata" ON sites FOR SELECT TO authenticated USING (true);
-CREATE POLICY "System managers can modify sites" ON sites FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
+-- ------------------------------------------------------------
+-- 4. REFERENCE DATA: everyone reads, ceo / system_manager / hr write
+-- ------------------------------------------------------------
+CREATE POLICY "Anyone can view sites" ON sites
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins can modify sites" ON sites FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
 
-CREATE POLICY "Anyone can view portfolios" ON portfolios FOR SELECT TO authenticated USING (true);
-CREATE POLICY "System managers can modify portfolios" ON portfolios FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
+CREATE POLICY "Anyone can view sectors" ON sectors
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins can modify sectors" ON sectors FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
 
-CREATE POLICY "Anyone can view positions" ON positions FOR SELECT TO authenticated USING (true);
-CREATE POLICY "System managers can modify positions" ON positions FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
+CREATE POLICY "Anyone can view portfolios" ON portfolios
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins can modify portfolios" ON portfolios FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
 
-CREATE POLICY "Anyone can view stores" ON stores FOR SELECT TO authenticated USING (true);
-CREATE POLICY "System managers can modify stores" ON stores FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
+CREATE POLICY "Anyone can view positions" ON positions
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins can modify positions" ON positions FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
 
-CREATE POLICY "Broad Read Access to Workers" ON workers FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'supervisor', 'secretary', 'store_manager'))
-);
+CREATE POLICY "Anyone can view stores" ON stores
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins can modify stores" ON stores FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
 
--- Write (Insert/Update/Delete): hr, system_manager, owner
-CREATE POLICY "HR and System can modify workers" ON workers FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'system_manager'))
+-- ------------------------------------------------------------
+-- 5. WORKERS
+-- Secretaries only deal with office ('non_marking') staff.
+-- ------------------------------------------------------------
+CREATE POLICY "Staff can view workers" ON workers FOR SELECT TO authenticated USING (
+  (SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'supervisor', 'store_manager')
+  OR ((SELECT public.auth_role()) = 'secretary' AND worker_type::text = 'non_marking')
 );
+CREATE POLICY "HR and admins can modify workers" ON workers FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'system_manager'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'hr', 'system_manager'));
 
-
--- 6. ATTENDANCE Table
--- Read: ceo, owner, hr, finance, system_manager, project_manager, supervisor, secretary
-CREATE POLICY "Broad Read Access to Attendance" ON attendance FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'supervisor', 'secretary'))
-);
-
-CREATE POLICY "Supervisors and HR can modify attendance" ON attendance FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'supervisor', 'secretary', 'store_manager'))
-);
-
-
--- 7. FINANCE DATA (salary_advances, loans)
--- Read: ceo, owner, hr, finance, system_manager
-CREATE POLICY "Finance and Global Read Access" ON salary_advances FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager'))
-);
-CREATE POLICY "Finance and Global Read Access" ON loans FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager'))
-);
-
--- Write: finance, owner, hr
-CREATE POLICY "Finance managers can modify advances" ON salary_advances FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr'))
-);
-CREATE POLICY "Finance managers can modify loans" ON loans FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr'))
-);
-
-
--- 8. LOGISTICS DATA (inventory, goods_log, invoices)
--- Read: ceo, owner, hr, finance, system_manager, project_manager, logistics_manager, store_manager
-CREATE POLICY "Logistics Read Access" ON inventory FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
-);
-CREATE POLICY "Logistics Read Access" ON goods_log FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
-);
-CREATE POLICY "Logistics Read Access" ON invoices FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
+-- ------------------------------------------------------------
+-- 6. ATTENDANCE
+-- Payroll is computed from this table, so it is append-mostly:
+--   * marking roles can INSERT, and only as themselves (marked_by is checked,
+--     otherwise anyone could record attendance in someone else's name);
+--   * a supervisor can change a 'Present' row to 'Half Day', nothing else;
+--   * ceo / hr can correct or delete records.
+-- ------------------------------------------------------------
+CREATE POLICY "Staff can view attendance" ON attendance FOR SELECT TO authenticated USING (
+  (SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'supervisor', 'store_manager')
+  OR ((SELECT public.auth_role()) = 'secretary' AND worker_type::text = 'non_marking')
 );
 
--- Write: logistics_manager, store_manager, owner, project_manager, system_manager
-CREATE POLICY "Logistics Write Access" ON inventory FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
-);
-CREATE POLICY "Logistics Write Access" ON goods_log FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
-);
-CREATE POLICY "Logistics Write Access" ON invoices FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'))
+CREATE POLICY "Marking roles can record attendance" ON attendance FOR INSERT TO authenticated WITH CHECK (
+  marked_by = (SELECT auth.uid())
+  AND (
+    (SELECT public.auth_role()) IN ('ceo', 'hr', 'supervisor', 'store_manager')
+    OR ((SELECT public.auth_role()) = 'secretary' AND worker_type::text = 'non_marking')
+  )
 );
 
--- 9. SECTORS Table
-CREATE POLICY "Anyone can view sectors" ON sectors FOR SELECT TO authenticated USING (true);
-CREATE POLICY "System managers can modify sectors" ON sectors FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
-);
+CREATE POLICY "Supervisors can mark half days" ON attendance FOR UPDATE TO authenticated
+  USING ((SELECT public.auth_role()) = 'supervisor' AND status::text = 'Present')
+  WITH CHECK ((SELECT public.auth_role()) = 'supervisor' AND status::text = 'Half Day');
 
--- 10. DEDUCTIONS Table
-CREATE POLICY "Finance and Global Read Access" ON deductions FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'hr', 'finance', 'system_manager'))
-);
-CREATE POLICY "Finance managers can modify deductions" ON deductions FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr', 'system_manager'))
-);
+CREATE POLICY "HR can correct attendance" ON attendance FOR UPDATE TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'hr'));
 
--- 11. SALARY SCHEDULES Table
-CREATE POLICY "Finance and HR can read salary schedules" ON salary_schedules FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr', 'system_manager'))
-);
-CREATE POLICY "Finance and HR can modify salary schedules" ON salary_schedules FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'finance', 'hr', 'system_manager'))
-);
+CREATE POLICY "HR can delete attendance" ON attendance FOR DELETE TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr'));
 
--- 12. WORKER TRANSFERS Table
-CREATE POLICY "Managers can view transfers" ON worker_transfers FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr', 'project_manager'))
+-- ------------------------------------------------------------
+-- 7. FINANCE DATA
+-- ------------------------------------------------------------
+-- Advances and loans: read ceo/hr/finance/system_manager, write ceo/hr/finance
+CREATE POLICY "Finance can view salary advances" ON salary_advances
+  FOR SELECT TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'));
+CREATE POLICY "Finance can modify salary advances" ON salary_advances FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance'));
+
+CREATE POLICY "Finance can view loans" ON loans
+  FOR SELECT TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'));
+CREATE POLICY "Finance can modify loans" ON loans FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance'));
+
+-- Deductions and salary schedules: system_manager may also write
+CREATE POLICY "Finance can view deductions" ON deductions
+  FOR SELECT TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'));
+CREATE POLICY "Finance can modify deductions" ON deductions FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'));
+
+CREATE POLICY "Finance can view salary schedules" ON salary_schedules
+  FOR SELECT TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'));
+CREATE POLICY "Finance can modify salary schedules" ON salary_schedules FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'));
+
+-- ------------------------------------------------------------
+-- 8. LOGISTICS (inventory, goods_log, invoices)
+--
+-- ceo / system_manager / project_manager / logistics_manager work across all
+-- stores. A store_manager works on their own store only (users.store_id):
+-- without this, any store manager could rewrite another store's stock.
+-- Inventory stays readable to store managers everywhere because a transfer's
+-- item row lives in the *sending* store.
+-- ------------------------------------------------------------
+CREATE POLICY "Logistics can view inventory" ON inventory FOR SELECT TO authenticated USING (
+  (SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager')
 );
-CREATE POLICY "Managers can modify transfers" ON worker_transfers FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role IN ('ceo', 'system_manager', 'hr'))
+CREATE POLICY "Logistics can modify inventory" ON inventory FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager'));
+CREATE POLICY "Store managers can add to their store" ON inventory FOR INSERT TO authenticated
+  WITH CHECK ((SELECT public.auth_role()) = 'store_manager' AND store_id = (SELECT public.auth_store_id()));
+CREATE POLICY "Store managers can update their store" ON inventory FOR UPDATE TO authenticated
+  USING ((SELECT public.auth_role()) = 'store_manager' AND store_id = (SELECT public.auth_store_id()))
+  WITH CHECK ((SELECT public.auth_role()) = 'store_manager' AND store_id = (SELECT public.auth_store_id()));
+
+CREATE POLICY "Logistics can view goods log" ON goods_log FOR SELECT TO authenticated USING (
+  (SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager')
+  OR ((SELECT public.auth_role()) = 'store_manager'
+      AND (store_from = (SELECT public.auth_store_id()) OR store_to = (SELECT public.auth_store_id())))
 );
+CREATE POLICY "Logistics can modify goods log" ON goods_log FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager'));
+CREATE POLICY "Store managers can log their transfers" ON goods_log FOR INSERT TO authenticated
+  WITH CHECK ((SELECT public.auth_role()) = 'store_manager'
+    AND (store_from = (SELECT public.auth_store_id()) OR store_to = (SELECT public.auth_store_id())));
+CREATE POLICY "Store managers can update their transfers" ON goods_log FOR UPDATE TO authenticated
+  USING ((SELECT public.auth_role()) = 'store_manager'
+    AND (store_from = (SELECT public.auth_store_id()) OR store_to = (SELECT public.auth_store_id())))
+  WITH CHECK ((SELECT public.auth_role()) = 'store_manager'
+    AND (store_from = (SELECT public.auth_store_id()) OR store_to = (SELECT public.auth_store_id())));
+
+CREATE POLICY "Logistics can view invoices" ON invoices FOR SELECT TO authenticated USING (
+  (SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager')
+  OR ((SELECT public.auth_role()) = 'store_manager' AND store_id = (SELECT public.auth_store_id()))
+);
+CREATE POLICY "Logistics can modify invoices" ON invoices FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager'));
+CREATE POLICY "Store managers can add invoices for their store" ON invoices FOR INSERT TO authenticated
+  WITH CHECK ((SELECT public.auth_role()) = 'store_manager' AND store_id = (SELECT public.auth_store_id()));
+
+-- ------------------------------------------------------------
+-- 9. WORKER TRANSFERS
+-- ------------------------------------------------------------
+CREATE POLICY "Managers can view transfers" ON worker_transfers FOR SELECT TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr', 'project_manager'));
+CREATE POLICY "Admins can modify transfers" ON worker_transfers FOR ALL TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
 
 COMMIT;
