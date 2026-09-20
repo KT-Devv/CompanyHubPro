@@ -12,3 +12,11 @@ Notes:
 - `client/.env` is ignored by Git (listed in the repository `.gitignore`).
 - Vite exposes variables to the browser only if they are prefixed with `VITE_`.
 - Never commit your real keys. Use `client/.env.example` as the template.
+
+## Demo mode (no database needed)
+
+```
+npm run dev:demo
+```
+
+Runs the whole UI on in-memory sample data. The login page shows a button per role so you can see each role's screens. Changes are lost on reload and nothing touches Supabase. Demo code is a build-time switch (`VITE_DEMO`) and is not included in production builds.

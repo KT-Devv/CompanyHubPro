@@ -6,11 +6,51 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: ".5625rem", /* 9px */
-        md: ".375rem", /* 6px */
-        sm: ".1875rem", /* 3px */
+        xl: "1rem",
+        lg: ".75rem",
+        md: ".5rem",
+        sm: ".375rem",
+      },
+      boxShadow: {
+        "2xs": "var(--shadow-2xs)",
+        xs: "var(--shadow-xs)",
+        sm: "var(--shadow-sm)",
+        DEFAULT: "var(--shadow)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
+        xl: "var(--shadow-xl)",
+        "2xl": "var(--shadow-2xl)",
       },
       colors: {
+        // The ladder of whites (see index.css)
+        paper: "hsl(var(--white) / <alpha-value>)",
+        snow: "hsl(var(--snow) / <alpha-value>)",
+        alabaster: "hsl(var(--alabaster) / <alpha-value>)",
+        ivory: "hsl(var(--ivory) / <alpha-value>)",
+        pearl: "hsl(var(--pearl) / <alpha-value>)",
+        bone: "hsl(var(--bone) / <alpha-value>)",
+        ink: "hsl(var(--ink) / <alpha-value>)",
+        // Status colours: text + a tint of white + hairline
+        success: {
+          DEFAULT: "hsl(var(--success) / <alpha-value>)",
+          soft: "hsl(var(--success-soft) / <alpha-value>)",
+          line: "hsl(var(--success-line) / <alpha-value>)",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning) / <alpha-value>)",
+          soft: "hsl(var(--warning-soft) / <alpha-value>)",
+          line: "hsl(var(--warning-line) / <alpha-value>)",
+        },
+        danger: {
+          DEFAULT: "hsl(var(--danger) / <alpha-value>)",
+          soft: "hsl(var(--danger-soft) / <alpha-value>)",
+          line: "hsl(var(--danger-line) / <alpha-value>)",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info) / <alpha-value>)",
+          soft: "hsl(var(--info-soft) / <alpha-value>)",
+          line: "hsl(var(--info-line) / <alpha-value>)",
+        },
         // Flat / base colors (regular buttons)
         background: "hsl(var(--background) / <alpha-value>)",
         foreground: "hsl(var(--foreground) / <alpha-value>)",

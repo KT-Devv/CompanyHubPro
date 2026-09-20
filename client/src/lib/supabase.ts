@@ -1,43 +1,47 @@
 import { createClient } from '@supabase/supabase-js';
+import { createDemoClient } from '../demo/client';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+// `VITE_DEMO=true npm run dev` runs the whole UI on in-memory sample data, with
+// no database. It is a build-time constant, so the demo code is removed from
+// production bundles.
+export const isDemo = import.meta.env.VITE_DEMO === 'true';
 
 function mask(value?: string) {
   if (!value) return '<missing>';
   return value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : '••••';
 }
 
-// Export a supabase client. In development we prefer a helpful console message
-// and a stub that throws with a clear message if the env vars are missing.
 let _supabase: any;
-if (!supabaseUrl || !supabaseAnonKey) {
+if (isDemo) {
+  _supabase = createDemoClient();
+  (window as any).__demoDb = _supabase.__db;
+} else if (!supabaseUrl || !supabaseAnonKey) {
   const info = `VITE_SUPABASE_URL=${supabaseUrl ? supabaseUrl : '<missing>'}, VITE_SUPABASE_ANON_KEY=${mask(supabaseAnonKey)}`;
   if (import.meta.env.DEV) {
-    // Helpful dev-time log — not exposing full secret
-    // eslint-disable-next-line no-console
-    console.error('[supabase] Missing env variables. ' + info + '\nPlease copy `client/.env.example` to `client/.env` and set your keys.');
+    // Helpful dev-time log; the full key is never printed.
+    console.error('[supabase] Missing env variables. ' + info + '\nCopy `client/.env.example` to `client/.env` and set your keys, or run in demo mode with VITE_DEMO=true.');
 
-    const stub = new Proxy({}, {
+    // A stub that throws a clear message the moment anything uses it.
+    const fail = () => {
+      throw new Error('Supabase is not configured. See client/.env (development)');
+    };
+    _supabase = new Proxy({}, {
       get(_target, prop) {
         if (prop === 'then') return undefined;
         return new Proxy(() => {}, {
-          get(_target2, prop2) {
+          get(_t, prop2) {
             if (prop2 === 'then') return undefined;
-            return () => {
-              throw new Error('Supabase is not configured. See client/.env (development)');
-            };
+            return fail;
           },
-          apply() {
-            throw new Error('Supabase is not configured. See client/.env (development)');
-          },
+          apply: fail,
         });
       },
     });
-
-    _supabase = stub;
   } else {
-    // In production, fail fast so deployment doesn't silently misbehave
+    // In production, fail fast so a deployment doesn't silently misbehave.
     throw new Error('Missing Supabase environment variables');
   }
 } else {
