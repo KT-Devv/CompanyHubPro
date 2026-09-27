@@ -1,87 +1,35 @@
 import { supabase } from './supabase';
 
-// Stock movements are several writes (adjust stock, write the log, ...) and the
-// browser has no transaction, so each helper undoes what it already did if a
-// later step fails. Quantity changes are compare-and-set on the value we read,
-// so two people adjusting the same row can't overwrite each other's change.
+// Each of these used to be 2-4 separate REST calls stitched together in the
+// browser (read a row, decide, write, write again), with a manual best-effort
+// rollback if a later step failed. A dropped connection or closed tab between
+// steps could leave real, silent gaps — stock debited with no shipment ever
+// logged, or two rows created for the same item by a race between two
+// concurrent "add stock" calls.
+//
+// They now each call a single Postgres function (see
+// migrations/harden_transactions_and_integrity_migration.sql) that does the
+// whole thing as one atomic, server-side transaction: if anything inside it
+// fails, everything it did is rolled back, so there is no partial outcome to
+// reason about. The functions run as the calling user (SECURITY INVOKER), so
+// every RLS policy still applies exactly as if these were plain table calls.
 
-const MAX_ATTEMPTS = 5;
-
-type Undo = () => Promise<unknown>;
-
-async function runWithUndo<T>(steps: (onUndo: (fn: Undo) => void) => Promise<T>): Promise<T> {
-  const undo: Undo[] = [];
-  try {
-    return await steps((fn) => undo.push(fn));
-  } catch (error) {
-    for (const fn of undo.reverse()) {
-      // Promise.resolve().then: query builders are thenables with no .catch().
-      await Promise.resolve()
-        .then(fn)
-        .catch((e) => console.error('Rollback step failed:', e));
-    }
-    throw error;
-  }
-}
-
-// Adds `delta` (may be negative) to an inventory row's quantity.
-export async function changeQuantity(rowId: string, delta: number): Promise<number> {
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { data: row, error } = await supabase
-      .from('inventory')
-      .select('id, quantity')
-      .eq('id', rowId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!row) throw new Error('Inventory item not found');
-
-    const next = (row.quantity || 0) + delta;
-    if (next < 0) throw new Error('Insufficient quantity in stock');
-
-    const { data: updated, error: updateError } = await supabase
-      .from('inventory')
-      .update({ quantity: next })
-      .eq('id', rowId)
-      .eq('quantity', row.quantity)
-      .select('id');
-    if (updateError) throw updateError;
-    if (updated?.length) return next;
-    // Someone changed the quantity between our read and write: read again.
-  }
-  throw new Error('Stock is being changed by someone else right now. Please try again.');
-}
-
-// Adds stock for an item in a store, merging into the existing row if the store
-// already holds that item (a plain insert would create duplicate rows).
 export async function addToInventory(
   storeId: string,
   itemName: string,
   quantity: number,
   remarks?: string | null,
 ): Promise<{ rowId: string; created: boolean }> {
-  const name = itemName.trim();
-  if (!name) throw new Error('Item name is required');
-
-  const { data: rows, error } = await supabase
-    .from('inventory')
-    .select('id')
-    .eq('store_id', storeId)
-    .eq('item_name', name)
-    .limit(1);
-  if (error) throw error;
-
-  if (rows?.length) {
-    await changeQuantity(rows[0].id, quantity);
-    return { rowId: rows[0].id, created: false };
-  }
-
-  const { data: inserted, error: insertError } = await supabase
-    .from('inventory')
-    .insert({ store_id: storeId, item_name: name, quantity, remarks: remarks || null })
-    .select('id')
+  const { data, error } = await supabase
+    .rpc('rpc_add_stock', {
+      p_store_id: storeId,
+      p_item_name: itemName,
+      p_quantity: quantity,
+      p_remarks: remarks || null,
+    })
     .single();
-  if (insertError) throw insertError;
-  return { rowId: inserted.id, created: true };
+  if (error) throw error;
+  return { rowId: data.id, created: data.created };
 }
 
 export interface SendGoodsInput {
@@ -92,36 +40,15 @@ export interface SendGoodsInput {
   remarks?: string | null;
 }
 
-// Takes stock out of the sending store and logs a pending transfer.
-export async function sendGoods({ itemId, fromStoreId, toStoreId, quantity, remarks }: SendGoodsInput): Promise<void> {
-  if (!fromStoreId) throw new Error('Source store is required');
-  if (!toStoreId) throw new Error('Destination store is required');
-  if (fromStoreId === toStoreId) throw new Error('Source and destination store must be different');
-
-  const { data: item, error } = await supabase
-    .from('inventory')
-    .select('id, store_id')
-    .eq('id', itemId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!item) throw new Error('Item not found');
-  if (item.store_id !== fromStoreId) throw new Error('Selected item does not belong to the chosen source store');
-
-  await runWithUndo(async (onUndo) => {
-    await changeQuantity(item.id, -quantity);
-    onUndo(() => changeQuantity(item.id, quantity));
-
-    const { error: logError } = await supabase.from('goods_log').insert({
-      item_id: item.id,
-      store_from: fromStoreId,
-      store_to: toStoreId,
-      quantity,
-      type: 'sent',
-      status: 'pending',
-      remarks: remarks || null,
-    });
-    if (logError) throw logError;
+export async function sendGoods(input: SendGoodsInput): Promise<void> {
+  const { error } = await supabase.rpc('rpc_send_goods', {
+    p_item_id: input.itemId,
+    p_from_store_id: input.fromStoreId,
+    p_to_store_id: input.toStoreId,
+    p_quantity: input.quantity,
+    p_remarks: input.remarks || null,
   });
+  if (error) throw error;
 }
 
 export interface ReceiveAgainstLogInput {
@@ -142,44 +69,17 @@ export async function receiveAgainstLog({
   quantity,
   remarks,
 }: ReceiveAgainstLogInput): Promise<'matched' | 'error'> {
-  const status = pendingLog.quantity === quantity ? 'matched' : 'error';
-
-  await runWithUndo(async (onUndo) => {
-    // Claim the log first. Only one receiver can move it out of 'pending', so a
-    // double-click, or two people receiving the same shipment, can't add the
-    // stock twice.
-    const { data: claimed, error: claimError } = await supabase
-      .from('goods_log')
-      .update({ status })
-      .eq('id', pendingLog.id)
-      .eq('status', 'pending')
-      .select('id');
-    if (claimError) throw claimError;
-    if (!claimed?.length) {
-      throw new Error('This transfer was already received or changed. Please refresh and check.');
-    }
-    onUndo(async () => {
-      const { error } = await supabase.from('goods_log').update({ status: 'pending' }).eq('id', pendingLog.id);
-      if (error) throw error;
-    });
-
-    const added = await addToInventory(receivingStoreId, itemName, quantity);
-    onUndo(() => changeQuantity(added.rowId, -quantity));
-
-    const { error: logError } = await supabase.from('goods_log').insert({
-      item_id: pendingLog.item_id,
-      store_from: pendingLog.store_from,
-      store_to: receivingStoreId,
-      quantity,
-      type: 'received',
-      status,
-      reference_id: pendingLog.id,
-      remarks: remarks || null,
-    });
-    if (logError) throw logError;
-  });
-
-  return status;
+  const { data, error } = await supabase
+    .rpc('rpc_receive_against_log', {
+      p_log_id: pendingLog.id,
+      p_receiving_store_id: receivingStoreId,
+      p_item_name: itemName,
+      p_quantity: quantity,
+      p_remarks: remarks || null,
+    })
+    .single();
+  if (error) throw error;
+  return data.receive_status;
 }
 
 export interface ReceiveUnexpectedInput {
@@ -199,18 +99,12 @@ export async function receiveUnexpected({
   quantity,
   remarks,
 }: ReceiveUnexpectedInput): Promise<void> {
-  await runWithUndo(async (onUndo) => {
-    const added = await addToInventory(receivingStoreId, itemName, quantity);
-    onUndo(() => changeQuantity(added.rowId, -quantity));
-
-    const { error: logError } = await supabase.from('goods_log').insert({
-      item_id: itemId,
-      store_to: receivingStoreId,
-      quantity,
-      type: 'received',
-      status: 'error',
-      remarks: remarks || null,
-    });
-    if (logError) throw logError;
+  const { error } = await supabase.rpc('rpc_receive_unlisted', {
+    p_item_id: itemId,
+    p_item_name: itemName,
+    p_receiving_store_id: receivingStoreId,
+    p_quantity: quantity,
+    p_remarks: remarks || null,
   });
+  if (error) throw error;
 }

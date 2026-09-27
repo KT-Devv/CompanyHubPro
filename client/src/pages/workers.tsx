@@ -464,8 +464,13 @@ function WorkerFormBody({ worker, onDone }: { worker: WorkerRow | null; onDone: 
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Site" htmlFor="f-site" error={errors.site_id}>
-              <Select value={form.site_id} onValueChange={(v) => set('site_id', v)}>
+            <Field
+              label="Site"
+              htmlFor="f-site"
+              error={errors.site_id}
+              hint={worker ? 'Use Transfers to move this worker: it keeps a record of the move.' : undefined}
+            >
+              <Select value={form.site_id} onValueChange={(v) => set('site_id', v)} disabled={!!worker}>
                 <SelectTrigger id="f-site"><SelectValue placeholder="Select site" /></SelectTrigger>
                 <SelectContent>
                   {sites.data?.map((s) => <SelectItem key={s.id} value={s.id}>{s.site_name}</SelectItem>)}
@@ -518,16 +523,22 @@ function WorkerFormBody({ worker, onDone }: { worker: WorkerRow | null; onDone: 
         {casual && (
           <section className="space-y-4">
             <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Bank account</h3>
+            {worker && (
+              <p className="text-xs text-muted-foreground">
+                Account details are set when this worker is transferred, so the change is on record. Use Transfers to update them.
+              </p>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Account site" htmlFor="f-acct-site">
-                <Select value={form.account_location} onValueChange={(v) => set('account_location', v)}>
+                <Select value={form.account_location} onValueChange={(v) => set('account_location', v)} disabled={!!worker}>
                   <SelectTrigger id="f-acct-site"><SelectValue placeholder="Select site" /></SelectTrigger>
                   <SelectContent>
                     {sites.data?.map((s) => <SelectItem key={s.id} value={s.id}>{s.site_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </Field>
-              {text('account_number', 'Account number')}
+              {/* undefined (not false) when creating, so it doesn't override the save-in-progress disable below it */}
+              {text('account_number', 'Account number', { disabled: worker ? true : undefined })}
             </div>
           </section>
         )}

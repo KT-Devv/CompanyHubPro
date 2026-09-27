@@ -42,7 +42,6 @@ export default function TransfersPage() {
 
 // ------------------------------------------------------------------ Form
 function TransferForm() {
-  const { userId } = useAuth();
   const { toast } = useToast();
   const workers = useWorkers();
   const sites = useSites();
@@ -82,7 +81,6 @@ function TransferForm() {
         notes,
         newAccountNumber: accountNumber,
         newAccountLocation: accountSite || null,
-        createdBy: userId,
       });
       toast({ title: 'Worker transferred', description: `${worker.name} moved to ${sites.data?.find((s) => s.id === toSite)?.site_name}.` });
       reset();

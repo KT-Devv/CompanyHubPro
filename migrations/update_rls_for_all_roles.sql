@@ -7,7 +7,8 @@
 --
 -- Safe to re-run: it drops every policy on the app tables and recreates the
 -- set below. Run it LAST, after any schema migration
--- (supabase-setup.sql -> fix_all_database_issues.sql -> this file).
+-- (supabase-setup.sql -> fix_all_database_issues.sql ->
+--  harden_transactions_and_integrity_migration.sql -> this file).
 -- ============================================================
 
 BEGIN;
@@ -218,14 +219,25 @@ CREATE POLICY "Logistics can view goods log" ON goods_log FOR SELECT TO authenti
 CREATE POLICY "Logistics can modify goods log" ON goods_log FOR ALL TO authenticated
   USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager'))
   WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'project_manager', 'logistics_manager'));
-CREATE POLICY "Store managers can log their transfers" ON goods_log FOR INSERT TO authenticated
+-- A store can only attest to what IT did: originate a 'sent' row itself, or
+-- resolve a 'received' row (including an unlisted receipt) at itself. Two
+-- separate type-scoped policies, not one "store_from = mine OR store_to =
+-- mine" check — that combined form let a store insert a 'sent' row naming a
+-- DIFFERENT store as store_from (only store_to had to be theirs), forging a
+-- shipment that looks like it came from a store that never sent anything.
+CREATE POLICY "Store managers can log outgoing shipments" ON goods_log FOR INSERT TO authenticated
+  WITH CHECK ((SELECT public.auth_role()) = 'store_manager' AND type = 'sent'
+    AND store_from = (SELECT public.auth_store_id()));
+CREATE POLICY "Store managers can log receipts" ON goods_log FOR INSERT TO authenticated
+  WITH CHECK ((SELECT public.auth_role()) = 'store_manager' AND type = 'received'
+    AND store_to = (SELECT public.auth_store_id()));
+-- Only the receiving store can resolve (claim) a pending shipment addressed
+-- to it; the sender cannot self-confirm its own outgoing log.
+CREATE POLICY "Store managers can claim shipments addressed to them" ON goods_log FOR UPDATE TO authenticated
+  USING ((SELECT public.auth_role()) = 'store_manager' AND status = 'pending'
+    AND store_to = (SELECT public.auth_store_id()))
   WITH CHECK ((SELECT public.auth_role()) = 'store_manager'
-    AND (store_from = (SELECT public.auth_store_id()) OR store_to = (SELECT public.auth_store_id())));
-CREATE POLICY "Store managers can update their transfers" ON goods_log FOR UPDATE TO authenticated
-  USING ((SELECT public.auth_role()) = 'store_manager'
-    AND (store_from = (SELECT public.auth_store_id()) OR store_to = (SELECT public.auth_store_id())))
-  WITH CHECK ((SELECT public.auth_role()) = 'store_manager'
-    AND (store_from = (SELECT public.auth_store_id()) OR store_to = (SELECT public.auth_store_id())));
+    AND store_to = (SELECT public.auth_store_id()));
 
 CREATE POLICY "Logistics can view invoices" ON invoices FOR SELECT TO authenticated USING (
   (SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager')
@@ -239,11 +251,20 @@ CREATE POLICY "Store managers can add invoices for their store" ON invoices FOR 
 
 -- ------------------------------------------------------------
 -- 9. WORKER TRANSFERS
+--
+-- Append-only audit log: INSERT + SELECT only, no UPDATE or DELETE policy at
+-- all, for any role including admins. Nothing in the app ever needs to
+-- change or remove a transfer record, and a log that even a compromised
+-- admin session cannot rewrite is worth more than the convenience of fixing
+-- a typo in place. created_by must equal the caller's own id, so a transfer
+-- can't be attributed to a different, real user — this is enforced again
+-- here (rpc_transfer_worker already sets it from auth.uid() itself) so a
+-- direct table write, bypassing the RPC, can't forge it either.
 -- ------------------------------------------------------------
 CREATE POLICY "Managers can view transfers" ON worker_transfers FOR SELECT TO authenticated
   USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr', 'project_manager'));
-CREATE POLICY "Admins can modify transfers" ON worker_transfers FOR ALL TO authenticated
-  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
-  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
+CREATE POLICY "Admins can record transfers" ON worker_transfers FOR INSERT TO authenticated
+  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr')
+    AND created_by = (SELECT auth.uid()));
 
 COMMIT;
