@@ -20,6 +20,7 @@ export default {
         lg: "var(--shadow-lg)",
         xl: "var(--shadow-xl)",
         "2xl": "var(--shadow-2xl)",
+        card: "var(--shadow-card)",
       },
       colors: {
         // The ladder of whites (see index.css)
@@ -30,6 +31,17 @@ export default {
         pearl: "hsl(var(--pearl) / <alpha-value>)",
         bone: "hsl(var(--bone) / <alpha-value>)",
         ink: "hsl(var(--ink) / <alpha-value>)",
+        // The logo's red: tiny accents only
+        crimson: {
+          DEFAULT: "hsl(var(--crimson) / <alpha-value>)",
+          soft: "hsl(var(--crimson-soft) / <alpha-value>)",
+        },
+        // Navy accent (primary, focus, progress, active nav)
+        brand: {
+          DEFAULT: "hsl(var(--brand) / <alpha-value>)",
+          soft: "hsl(var(--brand-soft) / <alpha-value>)",
+          line: "hsl(var(--brand-line) / <alpha-value>)",
+        },
         // Status colours: text + a tint of white + hairline
         success: {
           DEFAULT: "hsl(var(--success) / <alpha-value>)",

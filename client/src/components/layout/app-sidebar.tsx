@@ -95,7 +95,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       isActive={location === item.url}
-                      className="h-9 data-[active=true]:border data-[active=true]:border-sidebar-border data-[active=true]:shadow-xs"
+                      className="relative h-9 data-[active=true]:border data-[active=true]:border-brand-line data-[active=true]:shadow-xs data-[active=true]:[&>svg]:text-brand data-[active=true]:before:absolute data-[active=true]:before:inset-y-2 data-[active=true]:before:left-0 data-[active=true]:before:w-[3px] data-[active=true]:before:rounded-r-full data-[active=true]:before:bg-crimson data-[active=true]:before:content-['']"
                     >
                       <Link href={item.url} onClick={() => isMobile && setOpenMobile(false)}>
                         <item.icon aria-hidden />

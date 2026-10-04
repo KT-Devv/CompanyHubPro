@@ -32,7 +32,7 @@ function BrandArt() {
           <span className="num text-xs font-medium">42 / 48 marked</span>
         </div>
         <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-pearl">
-          <div className="h-full w-[87%] rounded-full bg-primary" />
+          <div className="h-full w-[87%] rounded-full bg-gradient-to-r from-brand to-brand/75" />
         </div>
         <ul className="space-y-2">
           {rows.map((r) => (
@@ -100,7 +100,8 @@ export default function Login() {
 
   return (
     <div className="grid min-h-screen bg-card lg:grid-cols-[1.05fr_1fr]">
-      <aside className="relative hidden flex-col justify-between overflow-hidden border-r border-border bg-alabaster p-12 lg:flex">
+      <aside className="relative hidden flex-col justify-between overflow-hidden border-r border-border bg-gradient-to-br from-brand-soft via-alabaster to-alabaster p-12 lg:flex">
+        <div aria-hidden className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand via-brand to-crimson" />
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs">
             <HardHat className="h-5 w-5" aria-hidden />

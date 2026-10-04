@@ -12,91 +12,106 @@
  *   ivory      hover and selected states
  *   pearl      muted fills, chips, progress tracks
  *   bone       strong dividers and input outlines
- * Text is a warm near-black ("ink"); status colours only ever appear as soft
- * tints of white (success / warning / danger / info) so the page stays white.
+ * Colours come from the TEK International Contractors logo: royal navy
+ * (#283080) and its red (#b84848). Every white carries a faint cool-blue tint so
+ * the page has a little colour without ever stopping being white. Text is a
+ * navy-black ("ink"); navy is the "brand" accent (primary buttons, focus,
+ * progress); red is reserved for tiny accents and for errors. "Success" is navy,
+ * not a second hue. Status colours only ever appear as soft tints.
+ * Depth comes from layered shadows and a faint tinted wash behind the page.
  */
 :root {
   --white: 0 0% 100%;
-  --snow: 40 33% 98.5%;
-  --alabaster: 40 27% 96.5%;
-  --ivory: 41 24% 94%;
-  --pearl: 40 20% 90%;
-  --bone: 40 16% 84%;
-  --ink: 30 12% 11%;
+  --snow: 226 32% 98.6%;
+  --alabaster: 227 28% 96.2%;
+  --ivory: 228 24% 93.2%;
+  --pearl: 228 19% 89%;
+  --bone: 228 14% 81%;
+  --ink: 232 34% 11%;
 
-  --button-outline: rgba(60, 45, 30, 0.14);
-  --badge-outline: rgba(60, 45, 30, 0.10);
+  /* Navy accent: used sparingly (primary, focus, progress, active nav) */
+  --brand: 234 52% 33%;
+  --brand-soft: 229 62% 96%;
+  --brand-line: 230 42% 85%;
+  /* The logo's red: small, deliberate accents only (active nav marker, brand stripe) */
+  --crimson: 0 50% 47%;
+  --crimson-soft: 0 70% 97%;
+
+  --button-outline: rgba(26, 36, 96, 0.16);
+  --badge-outline: rgba(26, 36, 96, 0.12);
   --opaque-button-border-intensity: -8;
-  --elevate-1: rgba(60, 45, 30, 0.035);
-  --elevate-2: rgba(60, 45, 30, 0.08);
+  --elevate-1: rgba(26, 36, 96, 0.04);
+  --elevate-2: rgba(26, 36, 96, 0.09);
 
   --background: var(--snow);
   --foreground: var(--ink);
-  --border: 40 18% 90%;
-  --input: 40 14% 82%;
+  --border: 228 20% 90%;
+  --input: 228 14% 80%;
 
   --card: var(--white);
   --card-foreground: var(--ink);
-  --card-border: 40 18% 90%;
+  --card-border: 228 20% 90%;
 
   --popover: var(--white);
   --popover-foreground: var(--ink);
-  --popover-border: 40 18% 88%;
+  --popover-border: 228 20% 88%;
 
-  --primary: var(--ink);
+  --primary: 234 54% 29%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 41 24% 94%;
+  --secondary: 228 24% 93.2%;
   --secondary-foreground: var(--ink);
-  --muted: 40 20% 94%;
-  --muted-foreground: 30 6% 38%;
-  --accent: 41 24% 94%;
+  --muted: 228 22% 94%;
+  --muted-foreground: 230 9% 38%;
+  --accent: 228 24% 93.2%;
   --accent-foreground: var(--ink);
-  --destructive: 5 60% 45%;
+  --destructive: 0 56% 44%;
   --destructive-foreground: 0 0% 100%;
-  --ring: 30 8% 40%;
+  --ring: 234 52% 42%;
 
   --sidebar: var(--alabaster);
   --sidebar-foreground: var(--ink);
-  --sidebar-border: 40 18% 90%;
-  --sidebar-primary: var(--ink);
+  --sidebar-border: 228 20% 89%;
+  --sidebar-primary: 234 54% 29%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: var(--white);
   --sidebar-accent-foreground: var(--ink);
-  --sidebar-ring: 30 8% 40%;
+  --sidebar-ring: 234 52% 42%;
 
   /* status: text colour + a tint of white + its hairline */
-  --success: 142 40% 27%;
-  --success-soft: 140 35% 95%;
-  --success-line: 140 25% 84%;
+  --success: 234 52% 33%;
+  --success-soft: 229 62% 96%;
+  --success-line: 230 42% 85%;
   --warning: 30 80% 29%;
   --warning-soft: 42 90% 94%;
   --warning-line: 40 55% 82%;
-  --danger: 5 60% 40%;
-  --danger-soft: 6 70% 96%;
-  --danger-line: 6 45% 88%;
-  --info: 212 45% 32%;
-  --info-soft: 212 60% 96%;
-  --info-line: 212 35% 86%;
+  --danger: 0 55% 42%;
+  --danger-soft: 0 70% 97%;
+  --danger-line: 0 45% 88%;
+  --info: 205 72% 33%;
+  --info-soft: 205 80% 96%;
+  --info-line: 205 45% 84%;
 
-  --chart-1: 30 10% 20%;
-  --chart-2: 145 32% 38%;
+  --chart-1: 234 45% 28%;
+  --chart-2: 0 50% 47%;
   --chart-3: 38 80% 45%;
-  --chart-4: 5 55% 50%;
-  --chart-5: 212 30% 45%;
+  --chart-4: 205 60% 45%;
+  --chart-5: 234 25% 55%;
 
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
   --radius: 0.75rem;
 
-  --shadow-2xs: 0 1px 1px 0 hsl(30 20% 20% / 0.04);
-  --shadow-xs: 0 1px 2px 0 hsl(30 20% 20% / 0.05);
-  --shadow-sm: 0 1px 2px 0 hsl(30 20% 20% / 0.05), 0 1px 3px 0 hsl(30 20% 20% / 0.05);
-  --shadow: 0 2px 4px -1px hsl(30 20% 20% / 0.06), 0 2px 6px -1px hsl(30 20% 20% / 0.05);
-  --shadow-md: 0 6px 12px -3px hsl(30 20% 20% / 0.08), 0 3px 6px -3px hsl(30 20% 20% / 0.06);
-  --shadow-lg: 0 14px 28px -6px hsl(30 20% 20% / 0.12), 0 6px 12px -6px hsl(30 20% 20% / 0.08);
-  --shadow-xl: 0 24px 48px -10px hsl(30 20% 20% / 0.16);
-  --shadow-2xl: 0 32px 64px -12px hsl(30 20% 20% / 0.2);
+  --shadow-2xs: 0 1px 1px 0 hsl(232 38% 16% / 0.05);
+  --shadow-xs: 0 1px 2px 0 hsl(232 38% 16% / 0.06);
+  --shadow-sm: 0 1px 2px 0 hsl(232 38% 16% / 0.06), 0 2px 4px -1px hsl(232 38% 16% / 0.06);
+  --shadow: 0 2px 4px -1px hsl(232 38% 16% / 0.07), 0 4px 8px -2px hsl(232 38% 16% / 0.06);
+  --shadow-md: 0 6px 12px -3px hsl(232 38% 16% / 0.10), 0 3px 6px -3px hsl(232 38% 16% / 0.07);
+  --shadow-lg: 0 14px 28px -6px hsl(232 38% 16% / 0.14), 0 6px 12px -6px hsl(232 38% 16% / 0.09);
+  --shadow-xl: 0 24px 48px -10px hsl(232 38% 16% / 0.18);
+  --shadow-2xl: 0 32px 64px -12px hsl(232 38% 16% / 0.22);
+  /* Cards: a crisp edge shadow plus a soft, wide one underneath for lift */
+  --shadow-card: 0 1px 2px 0 hsl(232 38% 16% / 0.05), 0 6px 16px -8px hsl(232 38% 16% / 0.12);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -126,12 +141,21 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
     font-feature-settings: "cv11", "ss01";
+    /* A faint tinted wash at the top and a soft fade to alabaster at the bottom */
+    background-image:
+      radial-gradient(900px 420px at 78% -8%, hsl(var(--brand-soft)) 0%, transparent 70%),
+      linear-gradient(180deg, transparent 55%, hsl(var(--alabaster) / 0.7) 100%);
+    background-attachment: fixed;
+  }
+  /* Sidebar: a hint of tint fading out down the rail */
+  [data-sidebar="sidebar"] {
+    background-image: linear-gradient(180deg, hsl(var(--brand-soft) / 0.7) 0%, transparent 38%);
   }
   h1, h2, h3 {
     letter-spacing: -0.015em;
   }
   ::selection {
-    background: hsl(var(--pearl));
+    background: hsl(var(--brand-line));
   }
 }
 
@@ -223,5 +247,6 @@
 @media print {
   body {
     background: white;
+    background-image: none;
   }
 }
