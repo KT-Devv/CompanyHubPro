@@ -47,7 +47,7 @@ export function roleLabel(role: string | null | undefined): string {
 export const ROUTE_ROLES = {
   '/': ALL_ROLES,
   '/workers': ['ceo', 'hr', 'system_manager', 'project_manager'],
-  '/attendance': ['supervisor', 'secretary', 'store_manager'],
+  '/attendance': ['hr', 'system_manager', 'supervisor', 'secretary', 'store_manager'],
   '/attendance/records': ['ceo', 'hr', 'project_manager', 'system_manager'],
   '/finance': ['ceo', 'hr', 'system_manager', 'finance'],
   '/insights': ['ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager'],
@@ -84,6 +84,9 @@ export const CAN = {
   manageAccounts: ['ceo', 'system_manager'],
   requireMfa: ['ceo'],
   markHalfDay: ['supervisor'],
+  // Only these may mark an earlier day. Every other marking role marks today only,
+  // and the CEO does not mark at all (read-only). All enforced by the database.
+  backfillAttendance: ['hr', 'system_manager'],
   // Sections of the Insights page, matching who can read the underlying tables.
   viewPeopleInsights: ['ceo', 'hr', 'finance', 'system_manager', 'project_manager'],
   viewCostInsights: ['ceo', 'hr', 'finance', 'system_manager'],

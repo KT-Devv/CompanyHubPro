@@ -101,25 +101,67 @@ describe('attendance', () => {
     assert.equal((await as(db, 'hr', `DELETE FROM attendance WHERE worker_id = '${WORKER.casualB}'`)).affectedRows, 1);
   });
 
-  describe('dates and offline timestamps are bounded', () => {
-    test('a supervisor cannot mark a future day', async () => {
-      assert.ok((await mark('sup', WORKER.casualB, 'Present', 'sup', 'casual', daysAgo(-3))).error);
+  describe('who can mark which day', () => {
+    const offlineMark = (who, worker, date, tappedAt, type = 'casual') => as(db, who, `INSERT INTO attendance(worker_id, date, status, marked_by, worker_type, offline_marked_at)
+      VALUES ('${worker}', '${date}', 'Present', '${ID[who]}', '${type}', '${tappedAt}')`);
+    const hoursAgo = (h) => new Date(Date.now() - h * 3_600_000).toISOString();
+    // Midday on a given day, so the moment is unambiguously on that UTC date.
+    const noonOf = (d) => `${d}T12:00:00Z`;
+
+    test('a supervisor can mark TODAY only', async () => {
+      allowed(await mark('sup', WORKER.casualB, 'Present', 'sup', 'casual', today()));
     });
-    test('a supervisor can still mark a few days back (a site that was offline)', async () => {
-      allowed(await mark('sup', WORKER.casualB, 'Present', 'sup', 'casual', daysAgo(2)));
+    test('a supervisor cannot mark yesterday, a few days back, or a future day', async () => {
+      assert.ok((await mark('sup', WORKER.casualA, 'Present', 'sup', 'casual', daysAgo(1))).error, 'yesterday');
+      assert.ok((await mark('sup', WORKER.casualA, 'Present', 'sup', 'casual', daysAgo(2))).error, '2 days back');
+      assert.ok((await mark('sup', WORKER.casualA, 'Present', 'sup', 'casual', daysAgo(10))).error, '10 days back');
+      assert.ok((await mark('sup', WORKER.casualA, 'Present', 'sup', 'casual', daysAgo(-1))).error, 'tomorrow');
+      assert.ok((await mark('sup', WORKER.casualA, 'Present', 'sup', 'casual', daysAgo(-3))).error, 'future');
     });
-    test('a supervisor cannot backdate beyond that window', async () => {
-      assert.ok((await mark('sup', WORKER.officeA, 'Present', 'sup', 'non_marking', daysAgo(10))).error);
+    test('a mark made offline on the day and sent later is accepted, because it was marked that day', async () => {
+      allowed(await offlineMark('sup', WORKER.casualA, daysAgo(1), noonOf(daysAgo(1))));
     });
-    test('HR can enter an older day', async () => {
+    test('an offline stamp cannot be used to mark a different day than the one it was made on', async () => {
+      // tapped today, claims yesterday
+      assert.ok((await offlineMark('sup', WORKER.casualB, daysAgo(1), hoursAgo(1))).error);
+      // tapped a day ago, claims two days ago
+      assert.ok((await offlineMark('sup', WORKER.casualB, daysAgo(2), noonOf(daysAgo(1)))).error);
+    });
+    test('offline marks are still bounded: not too old, not from the future', async () => {
+      assert.ok((await offlineMark('sup', WORKER.casualB, daysAgo(20), noonOf(daysAgo(20)))).error, 'too old');
+      assert.ok((await offlineMark('sup', WORKER.casualB, daysAgo(-1), new Date(Date.now() + 86_400_000).toISOString())).error, 'future stamp');
+    });
+    test('a supervisor can no longer turn a past day Present record into a half day', async () => {
+      await db.exec(`INSERT INTO attendance(worker_id, date, status, marked_by, worker_type) VALUES ('${WORKER.casualB}', '${daysAgo(1)}', 'Present', '${ID.sup}', 'casual')`);
+      const r = await as(db, 'sup', `UPDATE attendance SET status = 'Half Day' WHERE worker_id = '${WORKER.casualB}' AND date = '${daysAgo(1)}'`);
+      assert.equal(r.affectedRows, 0);
+    });
+    test('store managers and secretaries are also limited to today', async () => {
+      assert.ok((await mark('sec', WORKER.officeA, 'Present', 'sec', 'non_marking', daysAgo(1))).error, 'secretary, yesterday');
+      assert.ok((await mark('sec', WORKER.officeA, 'Present', 'sec', 'non_marking', daysAgo(2))).error, 'secretary, 2 days back');
+      assert.ok((await mark('st1', WORKER.officeA, 'Present', 'st1', 'non_marking', daysAgo(1))).error, 'store manager, yesterday');
+      // ...but a store manager's offline mark made on that day is still fine
+      allowed(await offlineMark('st1', WORKER.officeA, daysAgo(1), noonOf(daysAgo(1)), 'non_marking'));
+    });
+    test('only HR and the system manager can back-fill an earlier day', async () => {
       allowed(await mark('hr', WORKER.officeA, 'Present', 'hr', 'non_marking', daysAgo(10)));
+      allowed(await mark('sys', WORKER.casualA, 'Present', 'sys', 'casual', daysAgo(5)));
+      for (const who of ['sup', 'sec', 'st1']) {
+        assert.ok((await mark(who, WORKER.casualB, 'Present', who, 'casual', daysAgo(5))).error, `${who} cannot back-fill`);
+      }
     });
-    test('offline_marked_at must be a believable recent time', async () => {
-      const withTime = (t, date) => as(db, 'sup', `INSERT INTO attendance(worker_id, date, status, marked_by, worker_type, offline_marked_at)
-        VALUES ('${WORKER.casualA}', '${date}', 'Present', '${ID.sup}', 'casual', '${t}')`);
-      assert.ok((await withTime(new Date(Date.now() + 86_400_000).toISOString(), daysAgo(1))).error, 'future');
-      assert.ok((await withTime(new Date(Date.now() - 20 * 86_400_000).toISOString(), daysAgo(1))).error, 'too old');
-      allowed(await withTime(new Date(Date.now() - 3_600_000).toISOString(), daysAgo(1)));
+    test('the system manager can also mark today', async () => {
+      // Everyone is already marked today by earlier tests; ON CONFLICT DO NOTHING still has to pass the policy check.
+      const r = await as(db, 'sys', `INSERT INTO attendance(worker_id, date, status, marked_by, worker_type)
+        VALUES ('${WORKER.casualB}', '${today()}', 'Present', '${ID.sys}', 'casual') ON CONFLICT (worker_id, date) DO NOTHING`);
+      allowed(r);
+    });
+    test('the CEO is read-only for attendance: cannot add, change or delete', async () => {
+      assert.ok((await mark('ceo', WORKER.casualA, 'Present', 'ceo', 'casual', today())).error, 'insert today');
+      assert.ok((await mark('ceo', WORKER.casualA, 'Present', 'ceo', 'casual', daysAgo(5))).error, 'insert earlier day');
+      assert.ok((await as(db, 'ceo', `SELECT count(*)::int n FROM attendance`)).rows[0].n > 0, 'but can read');
+      assert.equal((await as(db, 'ceo', `UPDATE attendance SET status = 'Leave'`)).affectedRows, 0, 'cannot change');
+      assert.equal((await as(db, 'ceo', `DELETE FROM attendance`)).affectedRows, 0, 'cannot delete');
     });
   });
 });

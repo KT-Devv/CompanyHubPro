@@ -37,15 +37,27 @@ test('legacy links redirect to routes that exist', () => {
   }
 });
 
-test('attendance: marking roles mark, management reviews', () => {
+test('attendance: who marks, who reviews, who may back-fill', () => {
+  // Field roles mark but do not review.
   for (const r of ['supervisor', 'secretary', 'store_manager']) {
     assert.ok(canAccess(r, '/attendance'));
     assert.ok(!canAccess(r, '/attendance/records'));
   }
-  for (const r of ['ceo', 'hr', 'project_manager', 'system_manager']) {
+  // HR and the system manager both mark and review.
+  for (const r of ['hr', 'system_manager']) {
+    assert.ok(canAccess(r, '/attendance'));
     assert.ok(canAccess(r, '/attendance/records'));
-    assert.ok(!canAccess(r, '/attendance'));
   }
+  // The CEO reviews only: read-only for attendance.
+  assert.ok(canAccess('ceo', '/attendance/records'));
+  assert.ok(!canAccess('ceo', '/attendance'));
+  // A project manager only reviews.
+  assert.ok(canAccess('project_manager', '/attendance/records'));
+  assert.ok(!canAccess('project_manager', '/attendance'));
+  // Roles that never touch attendance.
+  for (const r of ['finance', 'logistics_manager']) assert.ok(!canAccess(r, '/attendance'));
+  // Only HR and the system manager may mark an earlier day.
+  for (const r of ALL_ROLES) assert.equal(can(r, 'backfillAttendance'), r === 'hr' || r === 'system_manager', r);
 });
 
 test('write permissions match what the database allows', () => {

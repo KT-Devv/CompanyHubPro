@@ -5,9 +5,9 @@ import { navLabels, signInAs, signOut, type RoleButton } from './helpers';
 // (the database enforces the real rules; tests/sql covers those).
 const NAV: Record<RoleButton, string[]> = {
   CEO: ['Dashboard', 'Insights', 'Workers', 'Attendance records', 'Transfers', 'Finance', 'Logistics', 'Accounts', 'Audit log', 'Security'],
-  'HR Manager': ['Dashboard', 'Insights', 'Workers', 'Attendance records', 'Transfers', 'Finance', 'Logistics', 'Audit log', 'Security'],
+  'HR Manager': ['Dashboard', 'Insights', 'Workers', 'Mark attendance', 'Attendance records', 'Transfers', 'Finance', 'Logistics', 'Audit log', 'Security'],
   'Finance Officer': ['Dashboard', 'Insights', 'Finance', 'Security'],
-  'System Manager': ['Dashboard', 'Insights', 'Workers', 'Attendance records', 'Transfers', 'Finance', 'Logistics', 'Accounts', 'Audit log', 'Security'],
+  'System Manager': ['Dashboard', 'Insights', 'Workers', 'Mark attendance', 'Attendance records', 'Transfers', 'Finance', 'Logistics', 'Accounts', 'Audit log', 'Security'],
   'Project Manager': ['Dashboard', 'Insights', 'Workers', 'Attendance records', 'Transfers', 'Logistics', 'Security'],
   Supervisor: ['Dashboard', 'Mark attendance', 'Security'],
   'Logistics Manager': ['Dashboard', 'Insights', 'Logistics', 'Security'],

@@ -165,31 +165,51 @@ CREATE POLICY "Staff can view attendance" ON attendance FOR SELECT TO authentica
 );
 
 -- Dates are bounded: never in the future (one day of slack for time zones ahead
--- of UTC), and the marking roles can only mark the last few days, enough for a
--- site with no signal to sync late. Backdating further is HR/CEO only.
--- offline_marked_at must be a believable recent time.
+-- of UTC). Who may mark which day:
+--   * hr / system_manager: any earlier day (back-filling).
+--   * supervisor, store manager, secretary: ONLY TODAY.
+--   * ceo: read-only for attendance, cannot mark.
+--     The one exception is a mark made today with no signal and sent later: it
+--     carries offline_marked_at, and is accepted only if that moment falls on the
+--     very day being marked (so it still means "I marked this on the day"),
+--     within the last few days.
+-- "Today" is the UTC day (Ghana is UTC+0). offline_marked_at must be a
+-- believable recent time. It comes from the phone's clock, so it is only as
+-- honest as the device; the app itself never sets it to anything but the tap time.
 CREATE POLICY "Marking roles can record attendance" ON attendance FOR INSERT TO authenticated WITH CHECK (
   marked_by = (SELECT auth.uid())
   AND date <= (current_date + 1)
-  AND ((SELECT public.auth_role()) IN ('ceo', 'hr') OR date >= (current_date - 3))
   AND (offline_marked_at IS NULL
        OR (offline_marked_at <= now() + interval '5 minutes' AND offline_marked_at >= now() - interval '4 days'))
   AND (
-    (SELECT public.auth_role()) IN ('ceo', 'hr', 'supervisor', 'store_manager')
+    (SELECT public.auth_role()) IN ('hr', 'system_manager')
+    OR (
+      (SELECT public.auth_role()) IN ('supervisor', 'store_manager', 'secretary')
+      AND (
+        date = (now() AT TIME ZONE 'UTC')::date
+        OR (offline_marked_at IS NOT NULL
+            AND (offline_marked_at AT TIME ZONE 'UTC')::date = date
+            AND date >= (now() AT TIME ZONE 'UTC')::date - 3)
+      )
+    )
+  )
+  AND (
+    (SELECT public.auth_role()) IN ('hr', 'system_manager', 'supervisor', 'store_manager')
     OR ((SELECT public.auth_role()) = 'secretary' AND worker_type::text = 'non_marking')
   )
 );
 
+-- A supervisor can turn today's Present into a half day, nothing earlier.
 CREATE POLICY "Supervisors can mark half days" ON attendance FOR UPDATE TO authenticated
-  USING ((SELECT public.auth_role()) = 'supervisor' AND status::text = 'Present')
+  USING ((SELECT public.auth_role()) = 'supervisor' AND status::text = 'Present' AND date = (now() AT TIME ZONE 'UTC')::date)
   WITH CHECK ((SELECT public.auth_role()) = 'supervisor' AND status::text = 'Half Day');
 
 CREATE POLICY "HR can correct attendance" ON attendance FOR UPDATE TO authenticated
-  USING ((SELECT public.auth_role()) IN ('ceo', 'hr'))
-  WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'hr'));
+  USING ((SELECT public.auth_role()) = 'hr')
+  WITH CHECK ((SELECT public.auth_role()) = 'hr');
 
 CREATE POLICY "HR can delete attendance" ON attendance FOR DELETE TO authenticated
-  USING ((SELECT public.auth_role()) IN ('ceo', 'hr'));
+  USING ((SELECT public.auth_role()) = 'hr');
 
 -- ------------------------------------------------------------
 -- 7. FINANCE DATA

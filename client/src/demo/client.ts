@@ -283,8 +283,15 @@ class Query implements PromiseLike<Result> {
         const list: Row[] = Array.isArray(this.payload) ? this.payload : [this.payload];
         const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
         for (const item of list) {
-          const tooEarly = !['ceo', 'hr'].includes(ctx.role) && String(item.date) < day(-3);
-          if (item.marked_by !== ctx.userId || String(item.date) > day(1) || tooEarly) return this.denied();
+          const date = String(item.date);
+          // Who may mark at all (the secretary only office staff), as in the database.
+          const mayMark = ['hr', 'system_manager', 'supervisor', 'store_manager'].includes(ctx.role) || (ctx.role === 'secretary' && item.worker_type === 'non_marking');
+          if (!mayMark) return this.denied();
+          // Mirrors the database: HR and the system manager any earlier day; every other marking role the day
+          // itself (or an offline mark whose tap time falls on that same day).
+          const tapDay = item.offline_marked_at ? String(item.offline_marked_at).slice(0, 10) : null;
+          const dayOk = ['hr', 'system_manager'].includes(ctx.role) || date === day(0) || (tapDay === date && date >= day(-3));
+          if (item.marked_by !== ctx.userId || date > day(1) || !dayOk) return this.denied();
         }
       }
 

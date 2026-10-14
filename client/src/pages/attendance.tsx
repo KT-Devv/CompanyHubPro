@@ -43,7 +43,11 @@ export default function AttendancePage() {
   const canHalfDay = can(userRole, 'markHalfDay');
   const today = todayISO();
 
-  const [date, setDate] = useState(today);
+  const [pickedDate, setDate] = useState(today);
+  // Everyone who marks here marks today and nothing else (the database enforces
+  // this too), so there is no date to choose. Only the CEO and HR may back-fill.
+  const canBackfill = can(userRole, 'backfillAttendance');
+  const date = canBackfill ? pickedDate : today;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -178,10 +182,14 @@ export default function AttendancePage() {
     <div className="space-y-6 pb-24">
       <PageHeader
         title="Mark attendance"
-        description={isSupervisor ? 'Record who is on site. A marked day is locked, so double-check before you confirm.' : isSecretary ? 'Record attendance for office staff.' : 'Record attendance for the day.'}
+        description={isSupervisor ? 'Record who is on site today. A marked day is locked, so double-check before you confirm.' : isSecretary ? 'Record attendance for office staff today.' : canBackfill ? 'Record attendance for any worker, today or an earlier day you missed. A marked day is locked, so double-check before you confirm.' : 'Record attendance for today.'}
         actions={
           <>
-            <DateStepper value={date} onChange={(d) => { setDate(d); setSelected(new Set()); }} max={today} />
+            {!canBackfill ? (
+              <span className="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 text-sm font-medium" data-testid="fixed-date">Today, {formatDay(today, 'd MMM yyyy')}</span>
+            ) : (
+              <DateStepper value={date} onChange={(d) => { setDate(d); setSelected(new Set()); }} max={today} />
+            )}
             {isSupervisor && (
               <Button variant="outline" onClick={() => setElsewhereOpen(true)} data-testid="button-cross-site">
                 <UserPlus /> Other site
