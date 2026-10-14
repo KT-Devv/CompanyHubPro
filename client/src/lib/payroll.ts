@@ -13,6 +13,8 @@ export interface PayrollWorker {
   positions?: { position_name: string; rate: number | null } | null;
   site?: { site_name: string } | null;
   account_site?: { site_name: string } | null;
+  national_id?: string | null;
+  bank_name?: string | null;
   account_number?: string | null;
 }
 
@@ -47,6 +49,8 @@ export interface PayrollLine {
   net: number;
   /** Deductions exceed gross pay, so the net is floored at zero. */
   overdrawn: boolean;
+  nationalId: string;
+  bankName: string;
   accountSite: string;
   accountNumber: string;
 }
@@ -57,7 +61,12 @@ export function dayCredit(status: string): number {
   return 0;
 }
 
-const cents = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+// Round to the pesewa, half away from zero, the way the database does.
+// Multiplying by a rate like 0.1 or 0.055 leaves float noise (303.345 can come out as
+// 303.34499999999997), and Number.EPSILON is far too small to correct that at this
+// size. Trimming to 14 significant digits first removes the noise without moving any
+// genuine value, so exact half-pesewas round up as they should.
+export const cents = (n: number) => Math.round(Number((n * 100).toPrecision(14))) / 100;
 
 function sumByWorker(rows: LedgerAmount[] | undefined): Map<string, number> {
   const totals = new Map<string, number>();
@@ -121,6 +130,8 @@ export function computePayroll({ workers, attendance, advances, loans, deduction
       totalDeductions,
       net: cents(Math.max(0, gross - totalDeductions)),
       overdrawn: totalDeductions > gross,
+      nationalId: worker.national_id || '',
+      bankName: worker.bank_name || '',
       accountSite: worker.account_site?.site_name || '-',
       accountNumber: worker.account_number || '-',
     });

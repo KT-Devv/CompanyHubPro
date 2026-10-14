@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRight, Boxes, Clock3, Inbox, Loader2, PackageCheck, PackagePlus, Send, TrendingDown, Truck } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Boxes, Clock3, Inbox, Loader2, PackageCheck, PackagePlus, Pencil, Send, TrendingDown, Truck } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { can } from '@/lib/roles';
 import { formatDateTime, whole } from '@/lib/format';
@@ -7,7 +7,7 @@ import { useSort } from '@/lib/use-sort';
 import { errorMessage } from '@/lib/api/util';
 import { useStores } from '@/lib/api/reference';
 import {
-  LOW_STOCK_THRESHOLD,
+  isLowStock,
   useAddStock,
   useGoodsLogs,
   useIncomingLogs,
@@ -15,6 +15,7 @@ import {
   useReceiveGoods,
   useReceiveUnexpected,
   useSendGoods,
+  useSetReorderLevel,
 } from '@/lib/api/logistics';
 import type { GoodsLogRow, InventoryRow, Store } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -33,6 +34,9 @@ import { StatCard } from '@/components/common/stat-card';
 import { EmptyState } from '@/components/common/empty-state';
 import { LogStatusBadge, StockBadge } from '@/components/common/status-badge';
 import { Field, SearchInput, SortHead } from '@/components/common/controls';
+import { ExportMenu } from '@/components/common/export-menu';
+import { InvoicesPanel } from '@/components/logistics/invoices-panel';
+import { exportTable } from '@/lib/export';
 
 type Dialogs = 'add' | 'send' | 'unlisted' | null;
 
@@ -52,10 +56,11 @@ export default function LogisticsPage() {
   const [storeFilter, setStoreFilter] = useState('all');
   const [dialog, setDialog] = useState<Dialogs>(null);
   const [receiving, setReceiving] = useState<GoodsLogRow | null>(null);
+  const [editLevel, setEditLevel] = useState<InventoryRow | null>(null);
 
   const myStore = stores.data?.find((s) => s.id === userStoreId);
   const items = inventory.data ?? [];
-  const low = items.filter((i) => i.quantity < LOW_STOCK_THRESHOLD);
+  const low = items.filter(isLowStock);
   const units = items.reduce((sum, i) => sum + i.quantity, 0);
 
   const filtered = useMemo(() => {
@@ -105,7 +110,7 @@ export default function LogisticsPage() {
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard label="Items tracked" value={whole(items.length)} icon={Boxes} loading={loading} />
         <StatCard label="Units in stock" value={whole(units)} icon={PackageCheck} loading={loading} />
-        <StatCard label="Running low" value={whole(low.length)} hint={`Under ${LOW_STOCK_THRESHOLD} units`} icon={TrendingDown} tone={low.length ? 'warning' : 'neutral'} loading={loading} />
+        <StatCard label="Running low" value={whole(low.length)} hint="At or below reorder level" icon={TrendingDown} tone={low.length ? 'warning' : 'neutral'} loading={loading} />
         <StatCard label="Shipments in transit" value={whole(incoming.data?.length ?? 0)} icon={Clock3} tone={incoming.data?.length ? 'info' : 'neutral'} loading={loading} />
       </div>
 
@@ -132,12 +137,27 @@ export default function LogisticsPage() {
             {(incoming.data?.length ?? 0) > 0 && <span className="num ml-1.5 rounded-full bg-info-soft px-1.5 text-[11px] leading-4 text-info">{incoming.data!.length}</span>}
           </TabsTrigger>
           <TabsTrigger value="movements" data-testid="tab-goods">Movements</TabsTrigger>
+          <TabsTrigger value="invoices" data-testid="tab-invoices">Invoices</TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory" className="mt-0">
           <Card>
             <div className="border-b border-border p-4">
-              <SearchInput value={query} onChange={setQuery} placeholder="Search items" className="sm:w-72" data-testid="input-search-inventory" />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <SearchInput value={query} onChange={setQuery} placeholder="Search items" className="sm:w-72" data-testid="input-search-inventory" />
+                <ExportMenu
+                  disabled={sorted.length === 0}
+                  onExport={(format) =>
+                    exportTable(format, {
+                      baseName: 'inventory',
+                      title: 'Inventory',
+                      subtitle: storeScoped ? myStore?.name : storeFilter === 'all' ? 'All stores' : stores.data?.find((s) => s.id === storeFilter)?.name,
+                      head: ['Item', 'Store', 'Quantity', 'Reorder level', 'Status', 'Last updated'],
+                      body: sorted.map((i) => [i.item_name, i.stores?.name ?? '', i.quantity, i.min_quantity, i.quantity <= 0 ? 'Out of stock' : isLowStock(i) ? 'Reorder' : 'In stock', formatDateTime(i.last_updated, 'yyyy-MM-dd HH:mm')]),
+                    })
+                  }
+                />
+              </div>
             </div>
             {loading ? (
               <div className="space-y-2 p-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}</div>
@@ -159,6 +179,7 @@ export default function LogisticsPage() {
                         <SortHead label="Item" column="item" sort={sort} onSort={toggle} />
                         {!storeScoped && <SortHead label="Store" column="store" sort={sort} onSort={toggle} />}
                         <SortHead label="Quantity" column="quantity" sort={sort} onSort={toggle} align="right" />
+                        <TableHead className="text-right">Reorder at</TableHead>
                         <TableHead>Status</TableHead>
                         <SortHead label="Updated" column="updated" sort={sort} onSort={toggle} align="right" />
                       </TableRow>
@@ -172,7 +193,15 @@ export default function LogisticsPage() {
                           </TableCell>
                           {!storeScoped && <TableCell className="text-muted-foreground">{item.stores?.name}</TableCell>}
                           <TableCell className="num text-right font-medium">{whole(item.quantity)}</TableCell>
-                          <TableCell><StockBadge quantity={item.quantity} threshold={LOW_STOCK_THRESHOLD} /></TableCell>
+                          <TableCell className="num text-right text-muted-foreground">
+                            {item.min_quantity > 0 ? whole(item.min_quantity) : 'Off'}
+                            {canManage && (
+                              <Button variant="ghost" size="icon" className="ml-1 h-7 w-7" onClick={() => setEditLevel(item)} aria-label={`Change reorder level for ${item.item_name}`} data-testid={`button-reorder-${item.id}`}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </TableCell>
+                          <TableCell><StockBadge quantity={item.quantity} minQuantity={item.min_quantity} /></TableCell>
                           <TableCell className="num whitespace-nowrap text-right text-muted-foreground">{formatDateTime(item.last_updated, 'd MMM, HH:mm')}</TableCell>
                         </TableRow>
                       ))}
@@ -188,7 +217,8 @@ export default function LogisticsPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className="num font-semibold">{whole(item.quantity)}</span>
-                        <StockBadge quantity={item.quantity} threshold={LOW_STOCK_THRESHOLD} />
+                        <StockBadge quantity={item.quantity} minQuantity={item.min_quantity} />
+                        {canManage && <button type="button" className="text-xs text-muted-foreground underline underline-offset-2" onClick={() => setEditLevel(item)}>Reorder at {item.min_quantity > 0 ? whole(item.min_quantity) : 'off'}</button>}
                       </div>
                     </li>
                   ))}
@@ -270,13 +300,63 @@ export default function LogisticsPage() {
             )}
           </Card>
         </TabsContent>
+        <TabsContent value="invoices" className="mt-0">
+          <InvoicesPanel scopeStoreId={scope} canAdd={canManage} stores={stores.data ?? []} inventory={items} />
+        </TabsContent>
       </Tabs>
 
+      <ReorderLevelDialog item={editLevel} onClose={() => setEditLevel(null)} />
       <AddStockDialog open={dialog === 'add'} onClose={() => setDialog(null)} stores={stores.data ?? []} fixedStoreId={storeScoped ? userStoreId : null} inventory={items} />
       <SendDialog open={dialog === 'send'} onClose={() => setDialog(null)} stores={stores.data ?? []} fixedStoreId={storeScoped ? userStoreId : null} inventory={items} />
       <ReceiveDialog log={receiving} onClose={() => setReceiving(null)} />
       <UnlistedDialog open={dialog === 'unlisted'} onClose={() => setDialog(null)} stores={stores.data ?? []} inventory={items} />
     </div>
+  );
+}
+
+function ReorderLevelDialog({ item, onClose }: { item: InventoryRow | null; onClose: () => void }) {
+  return (
+    <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-sm">{item && <ReorderLevelForm key={item.id} item={item} onClose={onClose} />}</DialogContent>
+    </Dialog>
+  );
+}
+
+function ReorderLevelForm({ item, onClose }: { item: InventoryRow; onClose: () => void }) {
+  const { toast } = useToast();
+  const save = useSetReorderLevel();
+  const [level, setLevel] = useState(String(item.min_quantity));
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await save.mutateAsync({ itemId: item.id, level: Number(level) });
+      toast({ title: 'Reorder level saved', description: Number(level) > 0 ? `${item.item_name}: alert at ${level} or fewer.` : `${item.item_name}: low-stock alerts are off.` });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error && !('code' in err) ? err.message : errorMessage(err));
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4" noValidate>
+      <DialogHeader>
+        <DialogTitle>Reorder level</DialogTitle>
+        <DialogDescription>{item.item_name}. You are alerted when stock falls to this number or fewer. Set 0 to turn alerts off for this item.</DialogDescription>
+      </DialogHeader>
+      <Field label="Alert at or below" htmlFor="reorder-level">
+        <Input id="reorder-level" inputMode="numeric" value={level} onChange={(e) => setLevel(e.target.value.replace(/\D/g, ''))} className="num" autoFocus data-testid="input-reorder-level" />
+      </Field>
+      {error && <p role="alert" className="rounded-md border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
+      <DialogFooter className="gap-2">
+        <Button type="button" variant="ghost" onClick={onClose} disabled={save.isPending}>Cancel</Button>
+        <Button type="submit" disabled={save.isPending || level === ''} data-testid="button-save-reorder">
+          {save.isPending && <Loader2 className="animate-spin" aria-hidden />} Save
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 

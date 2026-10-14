@@ -43,6 +43,18 @@ test('casual pay = days x rate, with SSNIT then tax on the remainder', () => {
   assert.equal(TAX_RATE, 0.1);
 });
 
+test('an exact half-pesewa rounds up, as it does in the database (rate 321 x 10 days)', () => {
+  // gross 3210.00, SSNIT 176.55, tax = (3210 - 176.55) * 10% = 303.345 exactly.
+  const [line] = computePayroll({
+    workers: [casual('a', 321)],
+    attendance: Array.from({ length: 10 }, () => ({ worker_id: 'a', status: 'Present' })),
+    advances: [], loans: [], deductions: [],
+  });
+  assert.equal(line.ssnit, 176.55);
+  assert.equal(line.tax, 303.35);
+  assert.equal(line.net, 2730.1);
+});
+
 test('advances, loans and other deductions come off net pay', () => {
   const [line] = computePayroll({
     workers: [casual('a', 100)],

@@ -9,6 +9,7 @@ vite.config.ts.*
 .env
 .env.*
 !.env.example
+!.env.*.example
 *.env
 client/.env
 client/.env.*
@@ -16,3 +17,7 @@ client/.env.*
 
 # Replit agent state (binary, machine-specific)
 .local
+
+# Playwright output
+test-results
+playwright-report

@@ -1,15 +1,19 @@
 import { Fragment, useMemo, useState } from 'react';
 import { endOfMonth, format, parseISO } from 'date-fns';
-import { ChevronRight, Download, Info, Landmark, Loader2, Plus, ReceiptText, Users, Wallet } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileText, Info, Landmark, Loader2, Lock, LockOpen, Plus, ReceiptText, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { can } from '@/lib/roles';
-import { downloadCsv } from '@/lib/csv';
+import { exportTable } from '@/lib/export';
+import { COMPANY } from '@/lib/branding';
+import { payeSchedule, ssnitSchedule } from '@/lib/statutory';
 import { formatDay, money, monthISO, todayISO } from '@/lib/format';
 import { computePayroll, totalPayroll, type PayrollLine } from '@/lib/payroll';
 import { useSort } from '@/lib/use-sort';
 import { errorMessage } from '@/lib/api/util';
 import { useWorkers } from '@/lib/api/workers';
 import { useMonthAttendance } from '@/lib/api/attendance';
+import { linesFromSnapshot, usePayrollPeriods, usePayrollReopens, usePayrollSnapshot } from '@/lib/api/payroll';
+import { useUsers } from '@/lib/api/reference';
 import { LEDGER_LABEL, useAddLedgerEntry, useLedger, type LedgerTable } from '@/lib/api/finance';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -23,10 +27,13 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { PageHeader } from '@/components/common/page-header';
 import { StatCard } from '@/components/common/stat-card';
 import { EmptyState } from '@/components/common/empty-state';
 import { WorkerTypeBadge } from '@/components/common/status-badge';
+import { ExportMenu, type ExportFormat } from '@/components/common/export-menu';
+import { BankFileDialog, CloseMonthDialog, ReopenMonthDialog } from '@/components/finance/payroll-dialogs';
 import { Field, MonthSelect, Segmented, SearchInput, SortHead, WorkerPicker } from '@/components/common/controls';
 
 const LEDGER_TABLES: LedgerTable[] = ['salary_advances', 'loans', 'deductions'];
@@ -42,28 +49,44 @@ export default function FinancePage() {
   const [type, setType] = useState<'all' | 'casual' | 'non_marking'>('all');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [bankOpen, setBankOpen] = useState(false);
 
   const workers = useWorkers();
   const attendance = useMonthAttendance(month);
   const advances = useLedger('salary_advances', month);
   const loans = useLedger('loans', month);
   const deductions = useLedger('deductions', month);
+  const periods = usePayrollPeriods();
+  const users = useUsers();
 
-  const inProgress = month === current;
+  // A closed month shows its frozen figures, not a fresh calculation.
+  const period = periods.data?.find((p) => p.month === month);
+  const closed = !!period;
+  const snapshot = usePayrollSnapshot(month, closed);
+  const reopens = usePayrollReopens(month, !closed && isCeo);
+  const lastReopen = reopens.data?.[0];
+  const personName = (id: string | undefined) => (id ? users.data?.find((u) => u.id === id)?.full_name ?? 'someone' : 'someone');
+
+  const inProgress = month >= current;
+  const canClose = can(userRole, 'closePayroll') && !closed && month < current;
   const monthLabel = format(parseISO(`${month}-01`), 'MMMM yyyy');
 
   const allowedTypes = LEDGER_TABLES.filter((t) => (t === 'deductions' ? can(userRole, 'addDeduction') : can(userRole, 'addAdvanceOrLoan')));
 
   const lines = useMemo(
     () =>
-      computePayroll({
-        workers: workers.data ?? [],
-        attendance: attendance.data ?? [],
-        advances: advances.data ?? [],
-        loans: loans.data ?? [],
-        deductions: deductions.data ?? [],
-      }),
-    [workers.data, attendance.data, advances.data, loans.data, deductions.data],
+      closed
+        ? linesFromSnapshot(snapshot.data ?? [])
+        : computePayroll({
+            workers: workers.data ?? [],
+            attendance: attendance.data ?? [],
+            advances: advances.data ?? [],
+            loans: loans.data ?? [],
+            deductions: deductions.data ?? [],
+          }),
+    [closed, snapshot.data, workers.data, attendance.data, advances.data, loans.data, deductions.data],
   );
 
   const filtered = useMemo(() => {
@@ -82,20 +105,75 @@ export default function FinancePage() {
     net: (l) => l.net,
   }, { key: 'name', direction: 'asc' });
 
-  const loading = workers.isLoading || attendance.isLoading;
-  const failed = workers.error ?? attendance.error;
+  const loading = periods.isLoading || (closed ? snapshot.isLoading : workers.isLoading || attendance.isLoading);
+  const failed = closed ? snapshot.error : workers.error ?? attendance.error;
 
-  function exportCsv() {
-    const headers = isCeo
+  const stamp = closed ? undefined : 'PROVISIONAL';
+  const stateNote = closed ? 'Closed month' : 'Provisional: month not closed';
+
+  // One table definition feeds Excel, PDF and CSV, so they cannot disagree.
+  function exportSchedule(format: ExportFormat) {
+    const head = isCeo
       ? ['Worker', 'Type', 'Site', 'Job', 'Rate', 'Days', 'Net pay']
       : ['Worker', 'Type', 'Site', 'Job', 'Rate', 'Days', 'Gross', 'SSNIT', 'Tax', 'Advances', 'Loans', 'Other deductions', 'Net pay', 'Account site', 'Account number'];
-    const rows = sorted.map((l) =>
+    const body = sorted.map((l) =>
       isCeo
-        ? [l.name, l.workerType, l.siteName, l.jobTitle, l.rate, l.fixed ? 'Fixed' : l.daysPresent, l.net.toFixed(2)]
-        : [l.name, l.workerType, l.siteName, l.jobTitle, l.rate, l.fixed ? 'Fixed' : l.daysPresent, l.gross.toFixed(2), l.ssnit.toFixed(2), l.tax.toFixed(2), l.advances.toFixed(2), l.loans.toFixed(2), l.otherDeductions.toFixed(2), l.net.toFixed(2), l.accountSite, l.accountNumber],
+        ? [l.name, l.workerType, l.siteName, l.jobTitle, l.rate, l.fixed ? 'Fixed' : l.daysPresent, l.net]
+        : [l.name, l.workerType, l.siteName, l.jobTitle, l.rate, l.fixed ? 'Fixed' : l.daysPresent, l.gross, l.ssnit, l.tax, l.advances, l.loans, l.otherDeductions, l.net, l.accountSite, l.accountNumber],
     );
-    downloadCsv(`payroll_${month}${inProgress ? '_provisional' : ''}.csv`, [headers, ...rows]);
-    toast({ title: 'Exported', description: 'The salary schedule was saved as a CSV file.' });
+    return exportTable(format, {
+      baseName: `payroll_${month}${closed ? '' : '_provisional'}`,
+      title: `Salary schedule, ${monthLabel}`,
+      subtitle: stateNote,
+      head,
+      body,
+      foot: isCeo ? ['Total', '', '', '', '', '', totals.net] : ['Total', '', '', '', '', '', totals.gross, totals.ssnit, totals.tax, totals.advances, totals.loans, totals.otherDeductions, totals.net, '', ''],
+      moneyColumns: isCeo ? [4, 6] : [4, 6, 7, 8, 9, 10, 11, 12],
+      stamp,
+      landscape: true,
+    });
+  }
+
+  async function downloadPayslips() {
+    try {
+      const { exportPayslipsPdf } = await import('@/lib/export/pdf');
+      const count = await exportPayslipsPdf(lines, month, { provisional: !closed, filename: `payslips_${month}${closed ? '' : '_provisional'}.pdf` });
+      toast(count ? { title: 'Payslips ready', description: `${count} payslip${count === 1 ? '' : 's'} saved as a PDF.` } : { title: 'No payslips', description: 'Nobody has pay for this month.' });
+    } catch (err) {
+      toast({ title: 'Could not create payslips', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' });
+    }
+  }
+
+  async function statutory(kind: 'ssnit' | 'paye', format: ExportFormat) {
+    try {
+      if (kind === 'ssnit') {
+        const { rows, totals: t } = ssnitSchedule(lines);
+        await exportTable(format, {
+          baseName: `ssnit_${month}`,
+          title: `SSNIT contributions, ${monthLabel}`,
+          subtitle: `${COMPANY.name}. Employee 5.5% and employer 13% of gross pay. ${stateNote}`,
+          head: ['Worker', 'National ID', 'Gross pay', 'Employee 5.5%', 'Employer 13%', 'Total due'],
+          body: rows.map((r) => [r.name, r.nationalId, r.gross, r.employee, r.employer, r.total]),
+          foot: ['Total', '', t.gross, t.employee, t.employer, t.total],
+          moneyColumns: [2, 3, 4, 5],
+          stamp,
+        });
+      } else {
+        const { rows, totals: t } = payeSchedule(lines);
+        await exportTable(format, {
+          baseName: `paye_${month}`,
+          title: `Income tax (PAYE), ${monthLabel}`,
+          subtitle: `${COMPANY.name}. Tax at 10% of pay after SSNIT. ${stateNote}`,
+          head: ['Worker', 'National ID', 'Gross pay', 'SSNIT', 'Taxable pay', 'Tax'],
+          body: rows.map((r) => [r.name, r.nationalId, r.gross, r.ssnit, r.taxable, r.tax]),
+          foot: ['Total', '', t.gross, t.ssnit, t.taxable, t.tax],
+          moneyColumns: [2, 3, 4, 5],
+          stamp,
+        });
+      }
+    } catch (err) {
+      toast({ title: 'Could not export', description: err instanceof Error ? err.message : 'Please try again.', variant: 'destructive' });
+    }
   }
 
   const toggleRow = (id: string) =>
@@ -114,10 +192,52 @@ export default function FinancePage() {
         actions={
           <>
             <MonthSelect value={month} onChange={(m) => { setMonth(m); setExpanded(new Set()); }} />
-            <Button variant="outline" onClick={exportCsv} disabled={sorted.length === 0}>
-              <Download /> Export
-            </Button>
-            {allowedTypes.length > 0 && (
+            <ExportMenu label="Export schedule" disabled={sorted.length === 0} onExport={exportSchedule} />
+            {can(userRole, 'closePayroll') && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" disabled={sorted.length === 0} data-testid="button-reports">
+                    <FileText /> Reports <ChevronDown className="opacity-60" aria-hidden />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">{closed ? `${monthLabel} (closed)` : `${monthLabel} (provisional)`}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {!isCeo && (
+                    <DropdownMenuItem onClick={downloadPayslips} data-testid="report-payslips">
+                      <FileText className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden /> Payslips (PDF)
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => setBankOpen(true)} disabled={!closed} data-testid="report-bank">
+                    <Landmark className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden />
+                    <span className="flex flex-col"><span>Bank payment file</span>{!closed && <span className="text-xs text-muted-foreground">Close the month first</span>}</span>
+                  </DropdownMenuItem>
+                  {!isCeo && (
+                    <>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger data-testid="report-ssnit"><ReceiptText className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden /> SSNIT schedule</DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          {(['xlsx', 'pdf', 'csv'] as const).map((f) => <DropdownMenuItem key={f} onClick={() => statutory('ssnit', f)}>{f === 'xlsx' ? 'Excel' : f.toUpperCase()}</DropdownMenuItem>)}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger data-testid="report-paye"><ReceiptText className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden /> Income tax (PAYE) schedule</DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          {(['xlsx', 'pdf', 'csv'] as const).map((f) => <DropdownMenuItem key={f} onClick={() => statutory('paye', f)}>{f === 'xlsx' ? 'Excel' : f.toUpperCase()}</DropdownMenuItem>)}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {canClose && (
+              <Button onClick={() => setCloseOpen(true)} data-testid="button-close-month"><Lock /> Close month</Button>
+            )}
+            {closed && can(userRole, 'reopenPayroll') && (
+              <Button variant="outline" onClick={() => setReopenOpen(true)} data-testid="button-reopen-month"><LockOpen /> Reopen</Button>
+            )}
+            {allowedTypes.length > 0 && !closed && (
               <Button onClick={() => setAddOpen(true)} data-testid="button-add-entry">
                 <Plus /> Add entry
               </Button>
@@ -126,7 +246,21 @@ export default function FinancePage() {
         }
       />
 
-      {inProgress && (
+      {closed && period && (
+        <div role="note" className="flex items-start gap-3 rounded-xl border border-brand-line bg-brand-soft px-4 py-3 text-sm text-brand" data-testid="closed-banner">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <p>
+            <span className="font-medium">{monthLabel} is closed.</span> Closed {formatDay(period.closed_at.slice(0, 10), 'd MMM yyyy')} by {personName(period.closed_by)}. These figures are frozen; entries and attendance for this month cannot change.
+          </p>
+        </div>
+      )}
+      {!closed && lastReopen && (
+        <div role="note" className="flex items-start gap-3 rounded-xl border border-warning-line bg-warning-soft px-4 py-3 text-sm text-warning">
+          <LockOpen className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <p><span className="font-medium">Reopened {formatDay(lastReopen.reopened_at.slice(0, 10), 'd MMM yyyy')} by {personName(lastReopen.reopened_by)}:</span> {lastReopen.reason}</p>
+        </div>
+      )}
+      {inProgress && !closed && (
         <div role="note" className="flex items-start gap-3 rounded-xl border border-info-line bg-info-soft px-4 py-3 text-sm text-info">
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p>
@@ -245,6 +379,9 @@ export default function FinancePage() {
         </TabsContent>
       </Tabs>
 
+      <CloseMonthDialog open={closeOpen} onOpenChange={setCloseOpen} month={month} monthLabel={monthLabel} lines={lines} />
+      <ReopenMonthDialog open={reopenOpen} onOpenChange={setReopenOpen} month={month} monthLabel={monthLabel} />
+      <BankFileDialog open={bankOpen} onOpenChange={setBankOpen} month={month} monthLabel={monthLabel} lines={lines} />
       <AddEntryDialog open={addOpen} onOpenChange={setAddOpen} month={month} monthLabel={monthLabel} allowedTypes={allowedTypes} workers={workers.data ?? []} />
     </div>
   );

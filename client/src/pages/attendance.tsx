@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ClipboardCheck, Clock3, Coffee, Loader2, UserPlus, Users, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Clock3, Coffee, CloudOff, Loader2, RotateCw, Trash2, UserPlus, Users, XCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { can } from '@/lib/roles';
 import { formatDay, todayISO } from '@/lib/format';
 import { errorMessage } from '@/lib/api/util';
 import { useWorkers, searchWorkersElsewhere } from '@/lib/api/workers';
 import { useAttendanceOn, useMarkAttendance } from '@/lib/api/attendance';
+import { removeMark, retryMark } from '@/lib/offline/queue';
+import { useOfflineQueue } from '@/lib/offline/use-offline';
 import type { AttendanceRow, AttendanceStatus, WorkerRow } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -61,7 +63,20 @@ export default function AttendancePage() {
   const attendance = useAttendanceOn(date);
   const { markOne, markMany, markHalfDay } = useMarkAttendance();
 
-  const records = useMemo(() => new Map((attendance.data ?? []).map((r) => [r.worker_id, r])), [attendance.data]);
+  // Marks made on this phone with no signal that haven't reached the server yet
+  // are shown as already marked (so nobody is marked twice), with a "waiting" tag.
+  const queue = useOfflineQueue();
+  const queued = useMemo(
+    () => new Map(queue.filter((m) => m.date === date && m.markedBy === userId).map((m) => [m.workerId, m])),
+    [queue, date, userId],
+  );
+  const records = useMemo(() => {
+    const map = new Map((attendance.data ?? []).map((r) => [r.worker_id, r]));
+    queued.forEach((m, workerId) => {
+      if (!map.has(workerId)) map.set(workerId, { id: `queued-${m.key}`, worker_id: workerId, date: m.date, status: m.status, marked_by: m.markedBy, worker_type: m.workerType } as AttendanceRow);
+    });
+    return map;
+  }, [attendance.data, queued]);
   const all = workers.data ?? [];
 
   const counts = useMemo(() => {
@@ -101,8 +116,10 @@ export default function AttendancePage() {
     if (!pending || !userId) return;
     const { worker, status } = pending;
     try {
-      await markOne.mutateAsync({ workerId: worker.id, workerName: worker.name, workerType: worker.worker_type ?? 'casual', date, status, markedBy: userId });
-      toast({ title: 'Attendance recorded', description: `${worker.name || 'Worker'} marked ${status.toLowerCase()}.` });
+      const outcome = await markOne.mutateAsync({ workerId: worker.id, workerName: worker.name, workerType: worker.worker_type ?? 'casual', date, status, markedBy: userId });
+      toast(outcome.queued
+        ? { title: 'Saved on this phone', description: `${worker.name || 'Worker'} marked ${status.toLowerCase()}. It will be sent when you're back online.` }
+        : { title: 'Attendance recorded', description: `${worker.name || 'Worker'} marked ${status.toLowerCase()}.` });
     } catch (err) {
       toast({ title: 'Could not record attendance', description: errorMessage(err), variant: 'destructive' });
     } finally {
@@ -114,14 +131,18 @@ export default function AttendancePage() {
     if (!userId) return;
     const targets = all.filter((w) => selected.has(w.id) && !records.has(w.id));
     try {
-      const done = await markMany.mutateAsync(
+      const { saved, queued: kept } = await markMany.mutateAsync(
         targets.map((w) => ({ workerId: w.id, workerName: w.name, workerType: w.worker_type ?? 'casual', date, status: 'Present' as const, markedBy: userId })),
       );
-      const skipped = targets.length - done.length;
-      toast({
-        title: 'Attendance recorded',
-        description: `${done.length} worker${done.length === 1 ? '' : 's'} marked present${skipped ? `, ${skipped} had already been marked by someone else` : ''}.`,
-      });
+      if (kept) {
+        toast({ title: 'Saved on this phone', description: `${kept} worker${kept === 1 ? '' : 's'} marked present. They will be sent when you're back online.` });
+      } else {
+        const skipped = targets.length - saved.length;
+        toast({
+          title: 'Attendance recorded',
+          description: `${saved.length} worker${saved.length === 1 ? '' : 's'} marked present${skipped ? `, ${skipped} had already been marked by someone else` : ''}.`,
+        });
+      }
       setSelected(new Set());
     } catch (err) {
       toast({ title: 'Could not record attendance', description: errorMessage(err), variant: 'destructive' });
@@ -252,9 +273,28 @@ export default function AttendancePage() {
                     </div>
 
                     {record ? (
-                      <div className="flex items-center gap-2 sm:justify-end">
+                      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                         <AttendanceBadge status={record.status} />
-                        {canHalfDay && record.status === 'Present' && (
+                        {queued.has(worker.id) && (
+                          queued.get(worker.id)!.state === 'failed' ? (
+                            <>
+                              <span className="flex items-center gap-1 text-xs text-danger" title={queued.get(worker.id)!.error}>
+                                <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> Not saved: {queued.get(worker.id)!.error}
+                              </span>
+                              <Button variant="outline" size="sm" onClick={() => void retryMark(queued.get(worker.id)!.key)}>
+                                <RotateCw /> Retry
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => void removeMark(queued.get(worker.id)!.key)}>
+                                <Trash2 /> Discard
+                              </Button>
+                            </>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground" data-testid={`queued-${worker.id}`}>
+                              <CloudOff className="h-3.5 w-3.5" aria-hidden /> Waiting to sync
+                            </span>
+                          )
+                        )}
+                        {canHalfDay && record.status === 'Present' && !queued.has(worker.id) && (
                           <Button variant="outline" size="sm" onClick={() => setHalfDayFor({ worker, record })} data-testid={`button-half-day-${worker.id}`}>
                             <Clock3 /> Half day
                           </Button>

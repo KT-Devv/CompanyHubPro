@@ -1,13 +1,16 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Loader2 } from "lucide-react";
 import { queryClient } from "./lib/queryClient";
+import { persister, PERSIST_BUSTER, PERSIST_MAX_AGE, shouldPersistQuery } from "./lib/offline/persist";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { canAccess, homePathForRole, LEGACY_REDIRECTS, type AppRoute } from "@/lib/roles";
 import { AppShell } from "@/components/layout/app-shell";
+import { ErrorBoundary } from "@/components/common/error-boundary";
+import { MfaGate } from "@/components/common/mfa-gate";
 import NotFound from "@/pages/not-found";
 
 // Each page is its own chunk, so a supervisor marking attendance on mobile data
@@ -15,12 +18,16 @@ import NotFound from "@/pages/not-found";
 const Login = lazy(() => import("@/pages/login"));
 const ResetPassword = lazy(() => import("@/pages/reset-password"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
+const InsightsPage = lazy(() => import("@/pages/insights"));
 const WorkersPage = lazy(() => import("@/pages/workers"));
 const AttendancePage = lazy(() => import("@/pages/attendance"));
 const AttendanceRecordsPage = lazy(() => import("@/pages/attendance-records"));
 const FinancePage = lazy(() => import("@/pages/finance"));
 const LogisticsPage = lazy(() => import("@/pages/logistics"));
 const TransfersPage = lazy(() => import("@/pages/transfers"));
+const AuditPage = lazy(() => import("@/pages/audit"));
+const AccountsPage = lazy(() => import("@/pages/accounts"));
+const SecurityPage = lazy(() => import("@/pages/security"));
 
 function FullPageSpinner() {
   return (
@@ -52,12 +59,16 @@ function LoginWrapper() {
 
 const PAGES: [AppRoute, ComponentType][] = [
   ["/", Dashboard],
+  ["/insights", InsightsPage],
   ["/workers", WorkersPage],
   ["/attendance", AttendancePage],
   ["/attendance/records", AttendanceRecordsPage],
   ["/finance", FinancePage],
   ["/logistics", LogisticsPage],
   ["/transfers", TransfersPage],
+  ["/audit", AuditPage],
+  ["/accounts", AccountsPage],
+  ["/security", SecurityPage],
 ];
 
 function Router() {
@@ -90,23 +101,37 @@ function Layout({ children }: { children: ReactNode }) {
   const bare = location === "/login" || location === "/reset-password";
 
   if (!user || !userRole || bare) return <>{children}</>;
-  return <AppShell>{children}</AppShell>;
+  return (
+    <MfaGate>
+      <AppShell>{children}</AppShell>
+    </MfaGate>
+  );
 }
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <Layout>
-            <Suspense fallback={<FullPageSpinner />}>
-              <Router />
-            </Suspense>
-          </Layout>
-          <Toaster />
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister,
+          maxAge: PERSIST_MAX_AGE,
+          buster: PERSIST_BUSTER,
+          dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
+        }}
+      >
+        <TooltipProvider>
+          <AuthProvider>
+            <Layout>
+              <Suspense fallback={<FullPageSpinner />}>
+                <Router />
+              </Suspense>
+            </Layout>
+            <Toaster />
+          </AuthProvider>
+        </TooltipProvider>
+      </PersistQueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -12,10 +12,12 @@ export interface Store { id: string; name: string; location: string }
 
 export interface UserProfile {
   id: string;
+  email: string;
   full_name: string;
   role: string;
   site_id: string | null;
   store_id: string | null;
+  is_active: boolean;
 }
 
 export interface WorkerRow {
@@ -36,6 +38,7 @@ export interface WorkerRow {
   current_location: string | null;
   account_location: string | null;
   account_number: string | null;
+  bank_name: string | null;
   created_at: string;
   // joined
   portfolios: { portfolio_name: string; rate: number } | null;
@@ -84,6 +87,7 @@ export interface InventoryRow {
   item_name: string;
   quantity: number;
   remarks: string | null;
+  min_quantity: number;
   last_updated: string;
   stores: { name: string; location: string } | null;
 }
@@ -105,4 +109,75 @@ export interface GoodsLogRow {
   inventory: { item_name: string } | null;
   from_store: { id: string; name: string } | null;
   to_store: { id: string; name: string } | null;
+}
+
+// A month that has been closed: its figures are frozen in payroll_lines.
+export interface PayrollPeriod {
+  month: string;
+  closed_at: string;
+  closed_by: string;
+  workers: number;
+  gross: number;
+  total_deductions: number;
+  net: number;
+}
+
+export interface PayrollLineRow {
+  month: string;
+  worker_id: string;
+  worker_name: string | null;
+  worker_type: WorkerType;
+  national_id: string | null;
+  site_name: string | null;
+  job_title: string | null;
+  rate: number;
+  days_present: number;
+  fixed: boolean;
+  gross: number;
+  ssnit: number;
+  tax: number;
+  advances: number;
+  loans: number;
+  other_deductions: number;
+  total_deductions: number;
+  net: number;
+  overdrawn: boolean;
+  bank_name: string | null;
+  account_site: string | null;
+  account_number: string | null;
+}
+
+export interface PayrollReopen {
+  id: number;
+  month: string;
+  reopened_by: string;
+  reopened_at: string;
+  reason: string;
+}
+
+export interface AuditRow {
+  id: number;
+  changed_at: string;
+  changed_by: string | null;
+  table_name: string;
+  row_id: string | null;
+  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  old_data: Record<string, unknown> | null;
+  new_data: Record<string, unknown> | null;
+}
+
+export type InvoiceType = 'purchase' | 'sale';
+export interface InvoiceRow {
+  id: string;
+  store_id: string;
+  item_id: string;
+  amount: number;
+  quantity: number;
+  supplier_name: string;
+  type: InvoiceType;
+  invoice_number: string | null;
+  date: string;
+  created_by: string | null;
+  inventory: { item_name: string } | null;
+  stores: { name: string } | null;
 }

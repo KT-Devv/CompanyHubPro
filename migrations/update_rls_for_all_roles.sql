@@ -8,7 +8,8 @@
 -- Safe to re-run: it drops every policy on the app tables and recreates the
 -- set below. Run it LAST, after any schema migration
 -- (supabase-setup.sql -> fix_all_database_issues.sql ->
---  harden_transactions_and_integrity_migration.sql -> this file).
+--  harden_transactions_and_integrity_migration.sql ->
+--  add_platform_features_migration.sql -> this file).
 -- ============================================================
 
 BEGIN;
@@ -23,17 +24,34 @@ BEGIN;
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.auth_role() RETURNS text
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
-AS $$ SELECT role::text FROM public.users WHERE id = auth.uid() $$;
+AS $$ SELECT role::text FROM public.users WHERE id = auth.uid() AND is_active $$;
 
 CREATE OR REPLACE FUNCTION public.auth_store_id() RETURNS uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
 -- via text so it also works if an older database stored store_id as varchar
-AS $$ SELECT NULLIF(store_id::text, '')::uuid FROM public.users WHERE id = auth.uid() $$;
+AS $$ SELECT NULLIF(store_id::text, '')::uuid FROM public.users WHERE id = auth.uid() AND is_active $$;
+
+-- Two-step sign-in. When the CEO has switched "require_mfa" on, the privileged
+-- roles (CEO, HR, finance, system manager) may only touch sensitive data from a
+-- session that has passed a second factor (aal2). Everyone else, and every
+-- session while the switch is off, passes. Applied as RESTRICTIVE policies
+-- below, so it can only ever take access away, never grant it.
+CREATE OR REPLACE FUNCTION public.mfa_ok() RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT CASE
+    WHEN COALESCE((SELECT value FROM public.app_settings WHERE key = 'require_mfa'), 'false') <> 'true' THEN true
+    WHEN COALESCE(public.auth_role(), '') NOT IN ('ceo', 'hr', 'finance', 'system_manager') THEN true
+    ELSE COALESCE(auth.jwt() ->> 'aal', 'aal1') = 'aal2'
+  END
+$$;
 
 REVOKE ALL ON FUNCTION public.auth_role() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.auth_store_id() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.auth_role() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.auth_store_id() TO authenticated;
+REVOKE ALL ON FUNCTION public.mfa_ok() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.mfa_ok() TO authenticated;
 
 -- ------------------------------------------------------------
 -- 2. Drop every existing policy on our tables, then make sure RLS is on
@@ -46,7 +64,7 @@ BEGIN
         SELECT policyname, tablename
         FROM pg_policies
         WHERE schemaname = 'public'
-          AND tablename IN ('users', 'sites', 'sectors', 'portfolios', 'positions', 'workers', 'stores', 'inventory', 'goods_log', 'invoices', 'attendance', 'salary_advances', 'loans', 'deductions', 'salary_schedules', 'worker_transfers')
+          AND tablename IN ('users', 'sites', 'sectors', 'portfolios', 'positions', 'workers', 'stores', 'inventory', 'goods_log', 'invoices', 'attendance', 'salary_advances', 'loans', 'deductions', 'salary_schedules', 'worker_transfers', 'app_settings', 'audit_log', 'payroll_periods', 'payroll_lines', 'payroll_reopens')
     ) LOOP
         EXECUTE format('DROP POLICY IF EXISTS %I ON %I', r.policyname, r.tablename);
     END LOOP;
@@ -68,6 +86,11 @@ ALTER TABLE loans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE deductions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE salary_schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE worker_transfers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payroll_periods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payroll_lines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payroll_reopens ENABLE ROW LEVEL SECURITY;
 
 -- ------------------------------------------------------------
 -- 3. USERS
@@ -77,38 +100,41 @@ ALTER TABLE worker_transfers ENABLE ROW LEVEL SECURITY;
 -- run  update users set role = 'ceo' where id = auth.uid()  from the browser
 -- console. Profiles (role, site, store) are managed in the Supabase dashboard.
 -- ------------------------------------------------------------
-CREATE POLICY "Authenticated users can view users" ON users
-  FOR SELECT TO authenticated USING (true);
+-- A deactivated or never-provisioned login can read only its own row (so the app
+-- can tell it why it has no access), not the staff directory.
+CREATE POLICY "Active staff can view users" ON users
+  FOR SELECT TO authenticated
+  USING ((SELECT public.auth_role()) IS NOT NULL OR id = (SELECT auth.uid()));
 
 -- ------------------------------------------------------------
 -- 4. REFERENCE DATA: everyone reads, ceo / system_manager / hr write
 -- ------------------------------------------------------------
-CREATE POLICY "Anyone can view sites" ON sites
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Active staff can view sites" ON sites
+  FOR SELECT TO authenticated USING ((SELECT public.auth_role()) IS NOT NULL);
 CREATE POLICY "Admins can modify sites" ON sites FOR ALL TO authenticated
   USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
   WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
 
-CREATE POLICY "Anyone can view sectors" ON sectors
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Active staff can view sectors" ON sectors
+  FOR SELECT TO authenticated USING ((SELECT public.auth_role()) IS NOT NULL);
 CREATE POLICY "Admins can modify sectors" ON sectors FOR ALL TO authenticated
   USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
   WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
 
-CREATE POLICY "Anyone can view portfolios" ON portfolios
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Active staff can view portfolios" ON portfolios
+  FOR SELECT TO authenticated USING ((SELECT public.auth_role()) IS NOT NULL);
 CREATE POLICY "Admins can modify portfolios" ON portfolios FOR ALL TO authenticated
   USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
   WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
 
-CREATE POLICY "Anyone can view positions" ON positions
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Active staff can view positions" ON positions
+  FOR SELECT TO authenticated USING ((SELECT public.auth_role()) IS NOT NULL);
 CREATE POLICY "Admins can modify positions" ON positions FOR ALL TO authenticated
   USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
   WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
 
-CREATE POLICY "Anyone can view stores" ON stores
-  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Active staff can view stores" ON stores
+  FOR SELECT TO authenticated USING ((SELECT public.auth_role()) IS NOT NULL);
 CREATE POLICY "Admins can modify stores" ON stores FOR ALL TO authenticated
   USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'))
   WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
@@ -138,8 +164,16 @@ CREATE POLICY "Staff can view attendance" ON attendance FOR SELECT TO authentica
   OR ((SELECT public.auth_role()) = 'secretary' AND worker_type::text = 'non_marking')
 );
 
+-- Dates are bounded: never in the future (one day of slack for time zones ahead
+-- of UTC), and the marking roles can only mark the last few days, enough for a
+-- site with no signal to sync late. Backdating further is HR/CEO only.
+-- offline_marked_at must be a believable recent time.
 CREATE POLICY "Marking roles can record attendance" ON attendance FOR INSERT TO authenticated WITH CHECK (
   marked_by = (SELECT auth.uid())
+  AND date <= (current_date + 1)
+  AND ((SELECT public.auth_role()) IN ('ceo', 'hr') OR date >= (current_date - 3))
+  AND (offline_marked_at IS NULL
+       OR (offline_marked_at <= now() + interval '5 minutes' AND offline_marked_at >= now() - interval '4 days'))
   AND (
     (SELECT public.auth_role()) IN ('ceo', 'hr', 'supervisor', 'store_manager')
     OR ((SELECT public.auth_role()) = 'secretary' AND worker_type::text = 'non_marking')
@@ -266,5 +300,50 @@ CREATE POLICY "Managers can view transfers" ON worker_transfers FOR SELECT TO au
 CREATE POLICY "Admins can record transfers" ON worker_transfers FOR INSERT TO authenticated
   WITH CHECK ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr')
     AND created_by = (SELECT auth.uid()));
+
+-- ------------------------------------------------------------
+-- 10. PLATFORM TABLES (written only by triggers / rpc_* functions, so the only
+-- policies are who may READ them)
+-- ------------------------------------------------------------
+CREATE POLICY "Staff can read settings" ON app_settings
+  FOR SELECT TO authenticated USING ((SELECT public.auth_role()) IS NOT NULL);
+
+CREATE POLICY "Oversight roles can read the audit log" ON audit_log
+  FOR SELECT TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'system_manager', 'hr'));
+
+CREATE POLICY "Finance roles can read payroll periods" ON payroll_periods
+  FOR SELECT TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'));
+CREATE POLICY "Finance roles can read payroll lines" ON payroll_lines
+  FOR SELECT TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'));
+CREATE POLICY "Finance roles can read payroll reopen log" ON payroll_reopens
+  FOR SELECT TO authenticated
+  USING ((SELECT public.auth_role()) IN ('ceo', 'hr', 'finance', 'system_manager'));
+
+-- ------------------------------------------------------------
+-- 11. TWO-STEP SIGN-IN (RESTRICTIVE: can only remove access)
+-- ------------------------------------------------------------
+CREATE POLICY "Two-step sign-in: workers" ON workers AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.mfa_ok())) WITH CHECK ((SELECT public.mfa_ok()));
+CREATE POLICY "Two-step sign-in: worker transfers" ON worker_transfers AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.mfa_ok())) WITH CHECK ((SELECT public.mfa_ok()));
+CREATE POLICY "Two-step sign-in: salary advances" ON salary_advances AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.mfa_ok())) WITH CHECK ((SELECT public.mfa_ok()));
+CREATE POLICY "Two-step sign-in: loans" ON loans AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.mfa_ok())) WITH CHECK ((SELECT public.mfa_ok()));
+CREATE POLICY "Two-step sign-in: deductions" ON deductions AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.mfa_ok())) WITH CHECK ((SELECT public.mfa_ok()));
+CREATE POLICY "Two-step sign-in: salary schedules" ON salary_schedules AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.mfa_ok())) WITH CHECK ((SELECT public.mfa_ok()));
+CREATE POLICY "Two-step sign-in: payroll periods" ON payroll_periods AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.mfa_ok())) WITH CHECK ((SELECT public.mfa_ok()));
+CREATE POLICY "Two-step sign-in: payroll lines" ON payroll_lines AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.mfa_ok())) WITH CHECK ((SELECT public.mfa_ok()));
+CREATE POLICY "Two-step sign-in: payroll reopen log" ON payroll_reopens AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.mfa_ok())) WITH CHECK ((SELECT public.mfa_ok()));
+CREATE POLICY "Two-step sign-in: audit log" ON audit_log AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.mfa_ok())) WITH CHECK ((SELECT public.mfa_ok()));
 
 COMMIT;

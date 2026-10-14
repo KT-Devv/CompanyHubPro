@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Download, Loader2, Pencil, Plus, Trash2, UserRound, Users } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2, UserRound, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { can } from '@/lib/roles';
-import { downloadCsv } from '@/lib/csv';
+import { exportTable } from '@/lib/export';
+import { isValidAccountNumber } from '@/lib/bank-file';
+import { ExportMenu } from '@/components/common/export-menu';
 import { formatDay, money, todayISO, workerTypeLabel } from '@/lib/format';
 import { useSort } from '@/lib/use-sort';
 import { errorMessage } from '@/lib/api/util';
@@ -80,14 +82,18 @@ export default function WorkersPage() {
   );
   const shown = sorted.slice(0, visible);
 
-  function exportCsv() {
-    downloadCsv(`workers_${todayISO()}.csv`, [
-      ['Name', 'Type', 'Job', 'Rate', 'Site', 'Phone', 'National ID', 'Date of birth', 'Employed since', 'Hometown', 'Current location', 'Contact person', 'Contact phone', 'Relation', 'Account site', 'Account number'],
-      ...sorted.map((w) => [
+  function exportWorkers(format: Parameters<React.ComponentProps<typeof ExportMenu>['onExport']>[0]) {
+    return exportTable(format, {
+      baseName: `workers_${todayISO()}`,
+      title: 'Workers',
+      subtitle: `${sorted.length} worker${sorted.length === 1 ? '' : 's'}`,
+      head: ['Name', 'Type', 'Job', 'Rate', 'Site', 'Phone', 'National ID', 'Date of birth', 'Employed since', 'Hometown', 'Current location', 'Contact person', 'Contact phone', 'Relation', 'Bank', 'Account site', 'Account number'],
+      body: sorted.map((w) => [
         w.name, workerTypeLabel(w.worker_type), jobTitle(w), rateLabel(w), w.site?.site_name, w.phone_number, w.national_id, w.dob, w.date_of_employment,
-        w.hometown, w.current_location, w.contact_person, w.cp_phone, w.cp_relation, w.account_site?.site_name, w.account_number,
+        w.hometown, w.current_location, w.contact_person, w.cp_phone, w.cp_relation, w.bank_name, w.account_site?.site_name, w.account_number,
       ]),
-    ]);
+      landscape: true,
+    });
   }
 
   async function confirmDelete() {
@@ -109,9 +115,7 @@ export default function WorkersPage() {
         description={canEdit ? 'Everyone on the payroll. Add, update or remove people here.' : 'Everyone on the payroll. Search, filter and open a profile for the full details.'}
         actions={
           <>
-            <Button variant="outline" onClick={exportCsv} disabled={sorted.length === 0}>
-              <Download /> Export
-            </Button>
+            <ExportMenu onExport={exportWorkers} disabled={sorted.length === 0} />
             {canEdit && (
               <Button onClick={() => setEditing('new')} data-testid="button-add-worker">
                 <Plus /> Add worker
@@ -304,12 +308,11 @@ function WorkerDetails({ worker, onClose, canEdit, onEdit, onDelete }: { worker:
                 <Detail label="Phone" value={worker.cp_phone} />
                 <Detail label="Relationship" value={worker.cp_relation} />
               </Section>
-              {worker.worker_type === 'casual' && (
-                <Section title="Bank account">
-                  <Detail label="Account site" value={worker.account_site?.site_name} />
-                  <Detail label="Account number" value={worker.account_number} />
-                </Section>
-              )}
+              <Section title="Bank account">
+                <Detail label="Bank" value={worker.bank_name} />
+                {worker.worker_type === 'casual' && <Detail label="Account site" value={worker.account_site?.site_name} />}
+                <Detail label="Account number" value={worker.account_number} />
+              </Section>
             </div>
 
             {canEdit && (
@@ -347,6 +350,7 @@ interface FormState {
   current_location: string;
   account_location: string;
   account_number: string;
+  bank_name: string;
 }
 
 function toForm(w: WorkerRow | null): FormState {
@@ -367,6 +371,7 @@ function toForm(w: WorkerRow | null): FormState {
     current_location: w?.current_location ?? '',
     account_location: w?.account_location ?? '',
     account_number: w?.account_number ?? '',
+    bank_name: w?.bank_name ?? '',
   };
 }
 
@@ -402,6 +407,9 @@ function WorkerFormBody({ worker, onDone }: { worker: WorkerRow | null; onDone: 
     if (casual && !form.portfolio_id) next.portfolio_id = 'Choose a portfolio.';
     if (!casual && !form.position_id) next.position_id = 'Choose a position.';
     if (!form.site_id) next.site_id = 'Choose a site.';
+    const account = form.account_number.trim();
+    if (account && !isValidAccountNumber(account)) next.account_number = 'Account numbers are 8 to 20 digits.';
+    if (account && !form.bank_name.trim()) next.bank_name = 'Enter the bank, so salary can be paid by transfer.';
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -424,9 +432,11 @@ function WorkerFormBody({ worker, onDone }: { worker: WorkerRow | null; onDone: 
       cp_relation: form.cp_relation.trim(),
       hometown: form.hometown.trim(),
       current_location: form.current_location.trim(),
-      // Only casual workers are paid into a site account
+      // Everyone is paid by bank transfer. Casual workers also have the site their
+      // account is held at; office staff have just the bank and account number.
+      bank_name: form.bank_name.trim() || null,
       account_location: casual ? form.account_location || null : null,
-      account_number: casual ? form.account_number.trim() || null : null,
+      account_number: form.account_number.trim() || null,
     };
     try {
       await save.mutateAsync({ id: worker?.id, values });
@@ -520,28 +530,29 @@ function WorkerFormBody({ worker, onDone }: { worker: WorkerRow | null; onDone: 
           </div>
         </section>
 
-        {casual && (
-          <section className="space-y-4">
-            <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Bank account</h3>
-            {worker && (
-              <p className="text-xs text-muted-foreground">
-                Account details are set when this worker is transferred, so the change is on record. Use Transfers to update them.
-              </p>
-            )}
-            <div className="grid gap-4 sm:grid-cols-2">
+        <section className="space-y-4">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Bank account</h3>
+          {worker && casual && worker.account_number && (
+            <p className="text-xs text-muted-foreground">
+              The account number and site are changed through Transfers, so the change is on record. The bank name can be corrected here.
+            </p>
+          )}
+          {text('bank_name', 'Bank', { placeholder: 'e.g. GCB Bank' })}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {casual && (
               <Field label="Account site" htmlFor="f-acct-site">
-                <Select value={form.account_location} onValueChange={(v) => set('account_location', v)} disabled={!!worker}>
+                <Select value={form.account_location} onValueChange={(v) => set('account_location', v)} disabled={!!worker && !!worker.account_number}>
                   <SelectTrigger id="f-acct-site"><SelectValue placeholder="Select site" /></SelectTrigger>
                   <SelectContent>
                     {sites.data?.map((s) => <SelectItem key={s.id} value={s.id}>{s.site_name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </Field>
-              {/* undefined (not false) when creating, so it doesn't override the save-in-progress disable below it */}
-              {text('account_number', 'Account number', { disabled: worker ? true : undefined })}
-            </div>
-          </section>
-        )}
+            )}
+            {/* undefined (not false) so it doesn't override the save-in-progress disable */}
+            {text('account_number', 'Account number', { inputMode: 'numeric', disabled: casual && worker?.account_number ? true : undefined })}
+          </div>
+        </section>
       </div>
 
       <SheetFooter className="flex-row justify-end gap-2 border-t border-border bg-alabaster p-4">

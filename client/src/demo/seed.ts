@@ -1,5 +1,8 @@
 // Sample data for demo mode (VITE_DEMO=true). Deterministic, so screenshots and
 // tests are repeatable. Nothing in here is real.
+import { computePayroll, type AttendanceDay, type LedgerAmount } from '../lib/payroll';
+import { lineToRow, payrollWorkersFrom } from './payroll';
+
 export type Row = Record<string, any>;
 export type Tables = Record<string, Row[]>;
 
@@ -19,6 +22,7 @@ function rng(seed: number) {
 
 const uid = (prefix: string, n: number) => `${prefix}-${String(n).padStart(3, '0')}`;
 
+const BANKS = ['GCB Bank', 'Ecobank Ghana', 'Fidelity Bank', 'Stanbic Bank'];
 const FIRST = ['Kwame', 'Ama', 'Yaw', 'Akosua', 'Kofi', 'Abena', 'Kwesi', 'Efua', 'Nana', 'Adwoa', 'Kojo', 'Esi', 'Yaa', 'Kweku', 'Afia', 'Fiifi', 'Maame', 'Kobby', 'Araba', 'Papa'];
 const LAST = ['Mensah', 'Boateng', 'Owusu', 'Asante', 'Osei', 'Appiah', 'Agyeman', 'Darko', 'Amoah', 'Quaye', 'Tetteh', 'Acheampong'];
 
@@ -66,7 +70,7 @@ export function seedTables(now: Date = new Date()): Tables {
     { id: 'store-3', name: 'Tema Store', location: 'Tema Port', created_at: iso(now) },
   ];
 
-  const users = [
+  const users: Row[] = [
     ['ceo', 'Efua Danquah', null, null],
     ['hr', 'Kojo Amankwah', null, null],
     ['finance', 'Abena Sarpong', null, null],
@@ -76,15 +80,23 @@ export function seedTables(now: Date = new Date()): Tables {
     ['logistics_manager', 'Nana Ofori', null, null],
     ['store_manager', 'Esi Bonsu', null, 'store-1'],
     ['secretary', 'Afia Kyei', null, null],
-  ].map(([role, full_name, site_id, store_id]) => ({
+  ].map(([role, full_name, site_id, store_id]): Row => ({
     id: DEMO_USER_IDS[role as string],
     email: `${role}@demo.local`,
     full_name,
     role,
     site_id,
     store_id,
+    is_active: true,
     created_at: iso(now),
   }));
+  users.push(
+    ...[
+      ['demo-supervisor2', 'supervisor2@demo.local', 'Yaw Boadu', 'supervisor', 'site-2', null, true],
+      ['demo-store_manager2', 'store_manager2@demo.local', 'Adwoa Tetteh', 'store_manager', null, 'store-2', true],
+      ['demo-finance2', 'finance2@demo.local', 'Kojo Mintah', 'finance', null, null, false],
+    ].map(([id, email, full_name, role, site_id, store_id, is_active]): Row => ({ id, email, full_name, role, site_id, store_id, is_active, created_at: iso(now) })),
+  );
 
   // ---- workers: 36 casual across the four sites + 6 office staff
   const workers: Row[] = [];
@@ -110,6 +122,7 @@ export function seedTables(now: Date = new Date()): Tables {
       current_location: site.site_name,
       account_location: acct.id,
       account_number: `10${String(20000000 + i * 90019).slice(0, 8)}`,
+      bank_name: BANKS[i % BANKS.length],
       created_at: iso(now),
     });
   }
@@ -131,8 +144,10 @@ export function seedTables(now: Date = new Date()): Tables {
       cp_relation: 'Spouse',
       hometown: 'Accra',
       current_location: 'Accra',
-      account_location: null,
-      account_number: null,
+      account_location: 'site-1',
+      // One office worker has no account on file, so the bank-file checks have something to flag.
+      account_number: i === 5 ? null : `20${String(40000000 + i * 70031).slice(0, 8)}`,
+      bank_name: i === 5 ? null : BANKS[(i + 1) % BANKS.length],
       created_at: iso(now),
     });
   }
@@ -143,23 +158,34 @@ export function seedTables(now: Date = new Date()): Tables {
   const secretaryId = DEMO_USER_IDS.secretary;
   const dayOfMonth = now.getDate();
   let aid = 1;
-  for (let d = 1; d < dayOfMonth; d++) {
-    const date = `${month}-${pad(d)}`;
-    if (new Date(`${date}T00:00:00`).getDay() === 0) continue; // no Sundays
-    for (const w of workers.filter((x) => x.worker_type === 'casual')) {
-      const r = rand();
-      attendance.push({
-        id: uid('a', aid++),
-        worker_id: w.id,
-        date,
-        timestamp: `${date}T0${7 + Math.floor(rand() * 2)}:${pad(Math.floor(rand() * 60))}:00.000Z`,
-        status: r < 0.82 ? 'Present' : r < 0.9 ? 'Half Day' : r < 0.96 ? 'Absent' : 'Leave',
-        marked_by: supervisorId,
-        worker_type: 'casual',
-        created_at: iso(now),
-      });
+  const monthBack = (n: number) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - n, 1);
+    return { prefix: `${d.getFullYear()}-${pad(d.getMonth() + 1)}`, days: new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() };
+  };
+  const previous = monthBack(1);
+  const older = monthBack(2);
+  const fillMonth = (prefix: string, lastDay: number) => {
+    for (let d = 1; d <= lastDay; d++) {
+      const date = `${prefix}-${pad(d)}`;
+      if (new Date(`${date}T00:00:00`).getDay() === 0) continue; // no Sundays
+      for (const w of workers.filter((x) => x.worker_type === 'casual')) {
+        const r = rand();
+        attendance.push({
+          id: uid('a', aid++),
+          worker_id: w.id,
+          date,
+          timestamp: `${date}T0${7 + Math.floor(rand() * 2)}:${pad(Math.floor(rand() * 60))}:00.000Z`,
+          status: r < 0.82 ? 'Present' : r < 0.9 ? 'Half Day' : r < 0.96 ? 'Absent' : 'Leave',
+          marked_by: supervisorId,
+          worker_type: 'casual',
+          created_at: iso(now),
+        });
+      }
     }
-  }
+  };
+  fillMonth(older.prefix, older.days);
+  fillMonth(previous.prefix, previous.days);
+  fillMonth(month, dayOfMonth - 1);
   for (const w of workers) {
     if (rand() < 0.65) {
       const r = rand();
@@ -196,6 +222,8 @@ export function seedTables(now: Date = new Date()): Tables {
     item_name,
     quantity,
     remarks,
+    min_quantity: item_name === 'Cement bags' ? 50 : item_name === 'Safety helmets' ? 15 : 10,
+    low_alerted_at: null,
     last_updated: new Date(now.getTime() - i * 5400_000).toISOString(),
   }));
 
@@ -225,5 +253,56 @@ export function seedTables(now: Date = new Date()): Tables {
     { id: 'tr-2', worker_id: 'w-101', from_site_id: 'site-2', to_site_id: 'site-1', effective_date: `${month}-01`, cleared_account: false, old_account_number: null, new_account_number: null, notes: null, created_by: DEMO_USER_IDS.system_manager, created_at: ago(300) },
   ];
 
-  return { sectors, sites, portfolios, positions, stores, users, workers, attendance, inventory, goods_log, salary_advances, loans, deductions, worker_transfers, salary_schedules: [], invoices: [] };
+  // Entries for the two months before this one (this month's are above).
+  const priorLedger = (prefix: string, tag: string) => ({
+    advances: [['w-002', 250, 'Rent'], ['w-009', 100, null], ['w-103', 400, null]].map(([worker_id, amount, notes], i) => ({ id: `adv-${tag}-${i}`, worker_id, amount, month: prefix, date: `${prefix}-0${5 + i}`, notes, created_at: iso(now) })),
+    loans: [['w-014', 600, 'Tools loan']].map(([worker_id, amount, notes], i) => ({ id: `loan-${tag}-${i}`, worker_id, amount, month: prefix, date: `${prefix}-04`, notes, created_at: iso(now) })),
+    deductions: [['w-021', 30, 'Late penalty']].map(([worker_id, amount, notes], i) => ({ id: `ded-${tag}-${i}`, worker_id, amount, month: prefix, date: `${prefix}-06`, notes, created_at: iso(now) })),
+  });
+  const prevLedger = priorLedger(previous.prefix, 'p1');
+  const oldLedger = priorLedger(older.prefix, 'p2');
+  salary_advances.push(...prevLedger.advances, ...oldLedger.advances);
+  loans.push(...prevLedger.loans, ...oldLedger.loans);
+  deductions.push(...prevLedger.deductions, ...oldLedger.deductions);
+
+  // The month before last is already closed, so the demo shows a frozen month; last month is still open to close.
+  const payrollWorkers = payrollWorkersFrom({ workers, portfolios, positions, sites });
+  const olderLines = computePayroll({
+    workers: payrollWorkers,
+    attendance: attendance.filter((a) => a.date.startsWith(older.prefix)) as AttendanceDay[],
+    advances: oldLedger.advances as unknown as LedgerAmount[], loans: oldLedger.loans as unknown as LedgerAmount[], deductions: oldLedger.deductions as unknown as LedgerAmount[],
+  });
+  const payroll_lines = olderLines.map((l) => lineToRow(older.prefix, l));
+  const sum = (key: 'gross' | 'totalDeductions' | 'net') => Math.round(olderLines.reduce((t, l) => t + l[key] * 100, 0)) / 100;
+  const payroll_periods = [{
+    month: older.prefix, closed_at: new Date(now.getFullYear(), now.getMonth() - 1, 2, 10, 15).toISOString(), closed_by: DEMO_USER_IDS.finance,
+    workers: olderLines.length, gross: sum('gross'), total_deductions: sum('totalDeductions'), net: sum('net'),
+  }];
+
+  const invoices = [
+    ['store-1', 'inv-001', 7200, 120, 'Dangote Cement Ltd', 'purchase', 'INV-2026-0412', 18],
+    ['store-1', 'inv-002', 3150, 40, 'Accra Steel Works', 'purchase', 'INV-2026-0419', 12],
+    ['store-2', 'inv-006', 2600, 50, 'Kumasi Building Supplies', 'purchase', 'KBS-8841', 9],
+    ['store-3', 'inv-010', 5400, 90, 'Tema Aggregates', 'purchase', 'TA-2207', 30],
+    ['store-1', 'inv-005', 480, 6, 'Colour Centre', 'sale', 'S-0091', 5],
+  ].map(([store_id, item_id, amount, quantity, supplier_name, type, invoice_number, hours], i) => ({
+    id: uid('invc', i + 1), store_id, item_id, amount, quantity, supplier_name, type, invoice_number,
+    created_by: DEMO_USER_IDS.store_manager, date: ago(Number(hours) * 8), created_at: ago(Number(hours) * 8),
+  }));
+
+  const audit_log = [
+    { id: 1, hours: 70, by: 'hr', table: 'workers', row: 'w-005', action: 'UPDATE', oldD: { phone_number: '024 100 1155' }, newD: { phone_number: '024 100 9921' } },
+    { id: 2, hours: 52, by: 'finance', table: 'salary_advances', row: 'adv-009', action: 'INSERT', oldD: null, newD: { worker_id: 'w-011', amount: 150, month } },
+    { id: 3, hours: 30, by: 'system_manager', table: 'users', row: 'demo-supervisor2', action: 'UPDATE', oldD: { site_id: 'site-1' }, newD: { site_id: 'site-2' } },
+    { id: 4, hours: 9, by: 'hr', table: 'portfolios', row: 'pf-5', action: 'UPDATE', oldD: { rate: 65 }, newD: { rate: 70 } },
+  ].map((e) => ({
+    id: e.id, changed_at: ago(e.hours), changed_by: DEMO_USER_IDS[e.by], table_name: e.table, row_id: e.row, action: e.action, old_data: e.oldD, new_data: e.newD,
+  }));
+
+  return {
+    sectors, sites, portfolios, positions, stores, users, workers, attendance, inventory, goods_log,
+    salary_advances, loans, deductions, worker_transfers, salary_schedules: [], invoices,
+    payroll_periods, payroll_lines, payroll_reopens: [], audit_log,
+    app_settings: [{ key: 'require_mfa', value: 'false', updated_at: iso(now) }],
+  };
 }

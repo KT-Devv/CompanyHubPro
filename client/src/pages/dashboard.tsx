@@ -9,7 +9,7 @@ import { useSites } from '@/lib/api/reference';
 import { useWorkers } from '@/lib/api/workers';
 import { useAttendanceOn } from '@/lib/api/attendance';
 import { useLedger } from '@/lib/api/finance';
-import { LOW_STOCK_THRESHOLD, useIncomingLogs, useInventory } from '@/lib/api/logistics';
+import { isLowStock, useIncomingLogs, useInventory } from '@/lib/api/logistics';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -151,7 +151,7 @@ function StockSnapshot() {
   const incoming = useIncomingLogs(storeId, enabled);
 
   const items = inventory.data ?? [];
-  const low = items.filter((i) => i.quantity < LOW_STOCK_THRESHOLD);
+  const low = items.filter(isLowStock);
   const units = items.reduce((sum, i) => sum + i.quantity, 0);
   const loading = inventory.isLoading || incoming.isLoading;
 
@@ -181,7 +181,7 @@ function StockSnapshot() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Items tracked" value={whole(items.length)} icon={Boxes} loading={loading} />
         <StatCard label="Units in stock" value={whole(units)} icon={PackageCheck} loading={loading} />
-        <StatCard label="Running low" value={whole(low.length)} hint={`Under ${LOW_STOCK_THRESHOLD} units`} icon={TrendingDown} tone={low.length ? 'warning' : 'neutral'} loading={loading} />
+        <StatCard label="Running low" value={whole(low.length)} hint="At or below reorder level" icon={TrendingDown} tone={low.length ? 'warning' : 'neutral'} loading={loading} />
         <StatCard label="Shipments in transit" value={whole(incoming.data?.length ?? 0)} icon={Clock3} tone={incoming.data?.length ? 'info' : 'neutral'} loading={loading} />
       </div>
       {low.length > 0 && (

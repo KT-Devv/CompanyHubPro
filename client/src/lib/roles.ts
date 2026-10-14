@@ -50,6 +50,10 @@ export const ROUTE_ROLES = {
   '/attendance': ['supervisor', 'secretary', 'store_manager'],
   '/attendance/records': ['ceo', 'hr', 'project_manager', 'system_manager'],
   '/finance': ['ceo', 'hr', 'system_manager', 'finance'],
+  '/insights': ['ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager'],
+  '/audit': ['ceo', 'system_manager', 'hr'],
+  '/accounts': ['ceo', 'system_manager'],
+  '/security': ALL_ROLES,
   '/logistics': ['ceo', 'hr', 'system_manager', 'project_manager', 'logistics_manager', 'store_manager'],
   '/transfers': ['ceo', 'hr', 'system_manager', 'project_manager'],
 } as const satisfies Record<string, readonly UserRole[]>;
@@ -74,7 +78,16 @@ export const CAN = {
   addAdvanceOrLoan: ['hr', 'finance'],
   addDeduction: ['hr', 'finance', 'system_manager'],
   manageStock: ['system_manager', 'project_manager', 'logistics_manager', 'store_manager'],
+  addInvoice: ['system_manager', 'project_manager', 'logistics_manager', 'store_manager'],
+  closePayroll: ['ceo', 'hr', 'finance'],
+  reopenPayroll: ['ceo'],
+  manageAccounts: ['ceo', 'system_manager'],
+  requireMfa: ['ceo'],
   markHalfDay: ['supervisor'],
+  // Sections of the Insights page, matching who can read the underlying tables.
+  viewPeopleInsights: ['ceo', 'hr', 'finance', 'system_manager', 'project_manager'],
+  viewCostInsights: ['ceo', 'hr', 'finance', 'system_manager'],
+  viewStockInsights: ['ceo', 'hr', 'finance', 'system_manager', 'project_manager', 'logistics_manager'],
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type Action = keyof typeof CAN;
@@ -82,6 +95,9 @@ export type Action = keyof typeof CAN;
 export function can(role: string | null | undefined, action: Action): boolean {
   return !!role && (CAN[action] as readonly string[]).includes(role);
 }
+
+// Roles that must use two-step sign-in once the CEO switches it on (mirrors mfa_ok() in the database).
+export const MFA_ROLES: readonly UserRole[] = ['ceo', 'hr', 'finance', 'system_manager'];
 
 // Bookmarks and links from the previous version of the app.
 export const LEGACY_REDIRECTS: Record<string, AppRoute> = {

@@ -13,12 +13,22 @@ access control**: don't skip the last step.
 3. `harden_transactions_and_integrity_migration.sql` – a unique constraint,
    the `rpc_*` functions the app calls for stock and worker transfers, and a
    few policy tightenings (see the file's own header)
-4. `update_rls_for_all_roles.sql` – **all** RLS policies, including the ones
-   step 3 also touches; this always runs last
+4. `add_platform_features_migration.sql` – payroll month close/lock and the
+   frozen `payroll_lines`, the audit log and its triggers, account
+   administration functions, per-item reorder levels, offline-attendance and
+   invoice columns, the `app_settings` table (two-step sign-in switch)
+5. `update_rls_for_all_roles.sql` – **all** RLS policies, including the ones
+   steps 3 and 4 also touch, and the `auth_role()` / `mfa_ok()` helpers; this
+   always runs last
+
+Instead of pasting these into the SQL editor, `npm run migrate` applies the chain in
+order (see `scripts/migrate.mjs`; it shows a plan first and only runs when you
+`--confirm` the database host). `.env.staging.example` describes a staging project.
 
 ## Existing database
 
-Run steps 2–4. All three are safe to re-run.
+Run steps 2–5. All of them are safe to re-run
+(`npm run migrate -- --from fix_all_database_issues.sql`).
 
 If you ran the earlier version of `fix_all_database_issues.sql`, re-run it: that
 version dropped `workers_portfolio_id_fkey` / `workers_position_id_fkey`, which

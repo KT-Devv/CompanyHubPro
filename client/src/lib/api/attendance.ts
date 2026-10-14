@@ -3,14 +3,16 @@ import { endOfMonth, format, parseISO, startOfMonth } from 'date-fns';
 import { supabase } from '../supabase';
 import { fetchAllRows } from '../fetch-all';
 import type { AttendanceRow, AttendanceStatus, WorkerType } from '../types';
-import { qk } from './util';
+import { enqueueMark } from '../offline/queue';
+import { isNetworkError, qk } from './util';
 
 // Everyone marked on one date. Refreshes on its own so two people marking the
 // same site see each other's work.
 export function useAttendanceOn(date: string) {
   return useQuery({
     queryKey: [...qk.attendance, 'day', date],
-    refetchInterval: 30_000,
+    // Live updates (lib/realtime) refresh this at once; the timer is only a safety net.
+    refetchInterval: 60_000,
     queryFn: () =>
       fetchAllRows<AttendanceRow>(() =>
         supabase.from('attendance').select('*').eq('date', date).order('timestamp', { ascending: false }).order('id'),
@@ -49,6 +51,20 @@ export interface MarkInput {
   markedBy: string;
 }
 
+// What happened to a save: `saved` reached the server, `queued` were kept on
+// this phone to be sent when the connection returns.
+export interface MarkOutcome {
+  queued: number;
+  saved: string[];
+}
+
+const offlineNow = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+async function queue(inputs: MarkInput[]): Promise<MarkOutcome> {
+  for (const i of inputs) await enqueueMark(i);
+  return { queued: inputs.length, saved: [] };
+}
+
 export function useMarkAttendance() {
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: qk.attendance });
@@ -58,7 +74,9 @@ export function useMarkAttendance() {
   // overwrite what the first just recorded. The UNIQUE (worker_id, date)
   // constraint rejects the duplicate instead.
   const markOne = useMutation({
-    mutationFn: async (input: MarkInput) => {
+    mutationFn: async (input: MarkInput): Promise<MarkOutcome> => {
+      // No signal: keep the mark on this phone and send it later.
+      if (offlineNow()) return queue([input]);
       const { error } = await supabase.from('attendance').insert({
         worker_id: input.workerId,
         date: input.date,
@@ -66,12 +84,14 @@ export function useMarkAttendance() {
         marked_by: input.markedBy,
         worker_type: input.workerType,
       });
+      if (error && isNetworkError(error)) return queue([input]);
       if (error) {
         if (error.code === '23505') {
           throw new Error(`${input.workerName || 'This worker'} was already marked for this date by someone else. The list has been refreshed.`);
         }
         throw error;
       }
+      return { queued: 0, saved: [input.workerId] };
     },
     onSettled: refresh,
   });
@@ -79,8 +99,9 @@ export function useMarkAttendance() {
   // ignoreDuplicates => ON CONFLICT DO NOTHING: anyone marked in the meantime
   // is left as-is, and .select() returns only the rows actually inserted.
   const markMany = useMutation({
-    mutationFn: async (inputs: MarkInput[]) => {
-      if (inputs.length === 0) return [] as string[];
+    mutationFn: async (inputs: MarkInput[]): Promise<MarkOutcome> => {
+      if (inputs.length === 0) return { queued: 0, saved: [] };
+      if (offlineNow()) return queue(inputs);
       const { data, error } = await supabase
         .from('attendance')
         .upsert(
@@ -94,8 +115,9 @@ export function useMarkAttendance() {
           { onConflict: 'worker_id,date', ignoreDuplicates: true },
         )
         .select('worker_id');
+      if (error && isNetworkError(error)) return queue(inputs);
       if (error) throw error;
-      return (data ?? []).map((r: { worker_id: string }) => r.worker_id);
+      return { queued: 0, saved: (data ?? []).map((r: { worker_id: string }) => r.worker_id) };
     },
     onSettled: refresh,
   });

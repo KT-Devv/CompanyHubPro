@@ -26,9 +26,9 @@ export function WorkerTypeBadge({ type }: { type: string | null | undefined }) {
   return <Badge variant="outline">{workerTypeLabel(type)}</Badge>;
 }
 
-export function StockBadge({ quantity, threshold }: { quantity: number; threshold: number }) {
+export function StockBadge({ quantity, minQuantity }: { quantity: number; minQuantity: number }) {
   if (quantity <= 0) return <Badge variant="danger">Out of stock</Badge>;
-  if (quantity < threshold) return <Badge variant="warning">Low</Badge>;
+  if (minQuantity > 0 && quantity <= minQuantity) return <Badge variant="warning">Reorder</Badge>;
   return <Badge variant="success">In stock</Badge>;
 }
 

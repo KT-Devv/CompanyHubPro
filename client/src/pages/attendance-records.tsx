@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { CheckCircle2, ClipboardList, Clock3, Coffee, Download, HelpCircle, Users, XCircle } from 'lucide-react';
-import { downloadCsv } from '@/lib/csv';
+import { CheckCircle2, ClipboardList, Clock3, Coffee, HelpCircle, Users, XCircle } from 'lucide-react';
+import { exportTable } from '@/lib/export';
+import { ExportMenu, type ExportFormat } from '@/components/common/export-menu';
 import { formatDay, formatTime, todayISO, workerTypeLabel } from '@/lib/format';
 import { useSort } from '@/lib/use-sort';
 import { errorMessage } from '@/lib/api/util';
@@ -81,11 +82,14 @@ export default function AttendanceRecordsPage() {
 
   const loading = attendance.isLoading || workers.isLoading;
 
-  function exportCsv() {
-    downloadCsv(`attendance_${date}.csv`, [
-      ['Date', 'Worker', 'Site', 'Type', 'Status', 'Marked at', 'Marked by'],
-      ...sorted.map((l) => [date, l.worker?.name, l.worker?.site?.site_name, workerTypeLabel(l.worker_type), l.status, formatTime(l.timestamp), l.markedByName]),
-    ]);
+  function exportRecords(format: ExportFormat) {
+    return exportTable(format, {
+      baseName: `attendance_${date}`,
+      title: 'Attendance records',
+      subtitle: formatDay(date),
+      head: ['Date', 'Worker', 'Site', 'Type', 'Status', 'Marked at', 'Marked by'],
+      body: sorted.map((l) => [date, l.worker?.name, l.worker?.site?.site_name, workerTypeLabel(l.worker_type), l.status, formatTime(l.timestamp), l.markedByName]),
+    });
   }
 
   return (
@@ -96,9 +100,7 @@ export default function AttendanceRecordsPage() {
         actions={
           <>
             <DateStepper value={date} onChange={setDate} max={today} />
-            <Button variant="outline" onClick={exportCsv} disabled={sorted.length === 0}>
-              <Download /> Export
-            </Button>
+            <ExportMenu onExport={exportRecords} disabled={sorted.length === 0} />
           </>
         }
       />

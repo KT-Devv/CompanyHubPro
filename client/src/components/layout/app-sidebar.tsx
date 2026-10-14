@@ -1,7 +1,9 @@
 import { useLocation } from 'wouter';
 import { Link } from 'wouter';
+import { useState } from 'react';
 import {
   ArrowRightLeft,
+  BarChart3,
   Boxes,
   ChevronsUpDown,
   ClipboardCheck,
@@ -9,6 +11,9 @@ import {
   HardHat,
   LayoutDashboard,
   LogOut,
+  ScrollText,
+  ShieldCheck,
+  UserCog,
   Users,
   Wallet,
   type LucideIcon,
@@ -31,6 +36,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
 import { canAccess, roleLabel, type AppRoute } from '@/lib/roles';
 import { initials } from '@/lib/format';
+import { ConfirmDialog } from '@/components/common/confirm-dialog';
 
 interface NavItem {
   title: string;
@@ -41,7 +47,13 @@ interface NavItem {
 // Which items a user sees is decided by canAccess(), the same check the router
 // uses, so every link shown is one the user can open.
 const NAV: { label: string; items: NavItem[] }[] = [
-  { label: 'Overview', items: [{ title: 'Dashboard', url: '/', icon: LayoutDashboard }] },
+  {
+    label: 'Overview',
+    items: [
+      { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+      { title: 'Insights', url: '/insights', icon: BarChart3 },
+    ],
+  },
   {
     label: 'People',
     items: [
@@ -53,6 +65,14 @@ const NAV: { label: string; items: NavItem[] }[] = [
   },
   { label: 'Money', items: [{ title: 'Finance', url: '/finance', icon: Wallet }] },
   { label: 'Operations', items: [{ title: 'Logistics', url: '/logistics', icon: Boxes }] },
+  {
+    label: 'Administration',
+    items: [
+      { title: 'Accounts', url: '/accounts', icon: UserCog },
+      { title: 'Audit log', url: '/audit', icon: ScrollText },
+    ],
+  },
+  { label: 'Account', items: [{ title: 'Security', url: '/security', icon: ShieldCheck }] },
 ];
 
 export function visibleNav(role: string | null | undefined) {
@@ -61,12 +81,13 @@ export function visibleNav(role: string | null | undefined) {
   );
 }
 
-export function AppSidebar() {
+export function AppSidebar({ unsynced = 0 }: { unsynced?: number }) {
   const { userRole, userFullName, user, signOut } = useAuth();
   const [location] = useLocation();
   const { isMobile, setOpenMobile } = useSidebar();
   const groups = visibleNav(userRole);
   const displayName = userFullName || user?.email || 'Account';
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   return (
     <Sidebar>
@@ -77,7 +98,7 @@ export function AppSidebar() {
           </span>
           <span className="leading-tight">
             <span className="block text-[15px] font-semibold tracking-tight">SiteTrack</span>
-            <span className="block text-xs text-muted-foreground">Workforce &amp; logistics</span>
+            <span className="block text-xs text-muted-foreground">TEK International Contractors</span>
           </span>
         </Link>
       </SidebarHeader>
@@ -133,13 +154,21 @@ export function AppSidebar() {
               {user?.email && <span className="block truncate text-xs text-muted-foreground">{user.email}</span>}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => signOut().catch(console.error)} data-testid="button-logout">
+            <DropdownMenuItem onClick={() => (unsynced > 0 ? setConfirmSignOut(true) : signOut().catch(console.error))} data-testid="button-logout">
               <LogOut className="mr-2 h-4 w-4" aria-hidden />
               Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarFooter>
+      <ConfirmDialog
+        open={confirmSignOut}
+        onOpenChange={setConfirmSignOut}
+        title="Sign out with attendance not yet sent?"
+        description={`${unsynced} attendance mark${unsynced === 1 ? ' is' : 's are'} still saved only on this phone. They are kept and sent the next time you sign in with a connection, but signing out now means nobody sees them until then.`}
+        confirmLabel="Sign out anyway"
+        onConfirm={() => { setConfirmSignOut(false); signOut().catch(console.error); }}
+      />
     </Sidebar>
   );
 }

@@ -25,7 +25,10 @@ app.use(
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:"],
-        connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co"],
+        // *.sentry.io is only contacted when VITE_SENTRY_DSN is set.
+        connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.sentry.io"],
+        workerSrc: ["'self'"],
+        manifestSrc: ["'self'"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
